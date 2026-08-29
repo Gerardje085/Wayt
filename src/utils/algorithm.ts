@@ -2,7 +2,7 @@
 // Wayt – Progressive Overload Algoritme (TypeScript)
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Workout, Voorschrift } from '../types';
-import { OEFENINGEN_DB } from '../data/exercises';
+import { findExercise } from '../data/exercises';
 
 const BASELINE_SETS   = 3;
 const BASELINE_REPS   = 10;
@@ -19,7 +19,7 @@ const DOEL_SETS       = 3;
  *   Alles minder    → gewicht −2,5 kg, doel: 3×10 (deload)
  */
 export function berekenVoorschrift(vorigeSessie: Workout | null, oefeningId: string): Voorschrift {
-  const oefInfo = OEFENINGEN_DB.find(o => o.id === oefeningId);
+  const oefInfo = findExercise(oefeningId);
   const basisGewicht = oefInfo ? oefInfo.startWaarde : 30.0;
 
   if (!vorigeSessie) {
@@ -42,10 +42,10 @@ export function berekenVoorschrift(vorigeSessie: Workout | null, oefeningId: str
 /** Leesbare statusbeschrijving */
 export function getStatusLabel(status: Voorschrift['status']): string {
   const labels: Record<Voorschrift['status'], string> = {
-    nieuw:      '🆕 Eerste sessie – begin met startgewicht',
-    progressie: '📈 Geweldig! Gewicht omhoog',
+    nieuw:      'Eerste sessie – begin met startgewicht',
+    progressie: 'Geweldig! Gewicht omhoog',
     houden:     'Goed bezig! Meer herhalingen doen',
-    deload:     '🔻 Even terugschakelen, gewicht omlaag',
+    deload:     'Even terugschakelen, gewicht omlaag',
   };
   return labels[status];
 }

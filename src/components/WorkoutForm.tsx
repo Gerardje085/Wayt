@@ -1,18 +1,15 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayt – WorkoutForm (TypeScript + Haptic Feedback)
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, StyleSheet,
-  TouchableOpacity, ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { berekenVolume } from '../utils/physics';
 import { useThema } from '../context/ThemeContext';
-import { OEFENINGEN_DB } from '../data/exercises';
+import { findExercise } from '../data/exercises';
 import type { RoutineSet } from '../lib/routineStore';
+import PrimaryButton from './ui/PrimaryButton';
 
 export interface WorkoutSet extends RoutineSet {
   completed: boolean;
@@ -39,7 +36,7 @@ export default function WorkoutForm({
     }
   }, [initialSets, oefening]);
 
-  const oefInfo = OEFENINGEN_DB.find(o => o.id === oefening);
+  const oefInfo = findExercise(oefening);
   const isTijd = oefInfo?.type === 'tijd';
   const isGewicht = oefInfo?.type === 'gewicht';
 
@@ -57,7 +54,7 @@ export default function WorkoutForm({
   const updateSet = (index: number, field: 'reps' | 'gewicht', value: string) => {
     const num = parseFloat(value.replace(',', '.'));
     if (isNaN(num)) return;
-    
+
     const newSets = [...setsList];
     newSets[index][field] = Math.max(0, num);
     setSetsList(newSets);
@@ -88,7 +85,6 @@ export default function WorkoutForm({
 
   return (
     <View>
-      {/* Tabel Header */}
       <View style={stijlen.tableHeaderRij}>
         <Text style={[stijlen.tableHeader, { color: kleuren.tekstGedimpt, width: 30, textAlign: 'center' }]}>SET</Text>
         {isGewicht && (
@@ -100,7 +96,6 @@ export default function WorkoutForm({
         <Ionicons name="checkmark" size={16} color={kleuren.tekstGedimpt} style={{ width: 44, textAlign: 'center' }} />
       </View>
 
-      {/* Sets Lijst */}
       {setsList.map((set, index) => {
         const isCompleted = set.completed;
         const bgKleur = isCompleted ? kleuren.succes + '22' : kleuren.kaart;
@@ -151,13 +146,11 @@ export default function WorkoutForm({
         );
       })}
 
-      {/* Add Set Knop */}
       <TouchableOpacity style={stijlen.addSetKnop} onPress={voegSetToe}>
         <Ionicons name="add" size={16} color={kleuren.accent} style={{ marginRight: 4 }} />
-        <Text style={{ color: kleuren.accent, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Add Set</Text>
+        <Text style={{ color: kleuren.accent, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Set toevoegen</Text>
       </TouchableOpacity>
 
-      {/* Live berekeningen */}
       <View style={stijlen.berekenRij}>
         <View style={[stijlen.berekenKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           <Text style={[stijlen.berekenLabel, { color: kleuren.tekstGedimpt }]}>Voltooid Volume</Text>
@@ -165,25 +158,14 @@ export default function WorkoutForm({
         </View>
       </View>
 
-      {/* Opslaan knop */}
-      <TouchableOpacity
-        style={stijlen.opslaanContainer}
-        onPress={handleOpslaan}
-        disabled={laden}
-        accessibilityLabel="Training opslaan"
-      >
-        <LinearGradient colors={['#7C3AED', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={stijlen.opslaanKnop}>
-          {laden
-            ? <ActivityIndicator color="#FFFFFF" />
-            : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="save-outline" size={18} color="#FFFFFF" />
-                <Text style={stijlen.opslaanTekst}>Voltooi Oefening</Text>
-              </View>
-            )
-          }
-        </LinearGradient>
-      </TouchableOpacity>
+      <View style={{ marginTop: 8 }}>
+        <PrimaryButton
+          titel="Voltooi Oefening"
+          icoon="save-outline"
+          onPress={handleOpslaan}
+          bezig={laden}
+        />
+      </View>
     </View>
   );
 }
@@ -220,16 +202,8 @@ const stijlen = StyleSheet.create({
     padding: 12, marginBottom: 20,
   },
 
-  berekenRij:   { flexDirection: 'row', gap: 8, marginBottom: 18 },
+  berekenRij: { flexDirection: 'row', gap: 8, marginBottom: 18 },
   berekenKaart: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 10, alignItems: 'center' },
   berekenLabel: { fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: 'Inter_400Regular', marginBottom: 4 },
   berekenWaarde: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  
-  opslaanContainer: {
-    borderRadius: 14, overflow: 'hidden',
-    shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
-  },
-  opslaanKnop:  { paddingVertical: 16, alignItems: 'center' },
-  opslaanTekst: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 });

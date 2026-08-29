@@ -7,9 +7,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import Animated, {
-  useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
   useFonts,
   Inter_400Regular,
@@ -23,6 +21,7 @@ import { LiveWorkoutProvider, useLiveWorkout, formatTijd } from '../src/context/
 import { GestureHandlerRootView }       from 'react-native-gesture-handler';
 import { Ionicons }                     from '@expo/vector-icons';
 import { useRouter as useRouterHook }   from 'expo-router';
+import OnboardingModal                  from '../src/components/OnboardingModal';
 
 function NavBewaker() {
   const { user, laden } = useAuth();
@@ -45,31 +44,25 @@ function ZwevendeTimerPil() {
   const { kleuren } = useThema();
   const { rustTimerLoopt, rustTimerResterend, rustTimerDuur, stopRustTimer, isActief } = useLiveWorkout();
   const router = useRouterHook();
+  const segments = useSegments();
+  const isOpWorkoutSessie = segments[0] === 'workout-session' || segments.includes('workout-session');
 
-  const opaciteit = useSharedValue(1);
-
-  useEffect(() => {
-    if (rustTimerLoopt && rustTimerResterend <= 10) {
-      opaciteit.value = withRepeat(
-        withSequence(withTiming(0.3, { duration: 300 }), withTiming(1, { duration: 300 })),
-        -1, true
-      );
-    } else {
-      opaciteit.value = withTiming(1, { duration: 200 });
-    }
-  }, [rustTimerLoopt, rustTimerResterend]);
-
-  const animStijl = useAnimatedStyle(() => ({ opacity: opaciteit.value }));
-
-  if (!rustTimerLoopt || !isActief) return null;
+  if (!rustTimerLoopt || !isActief || isOpWorkoutSessie) return null;
 
   const voortgang = rustTimerResterend / rustTimerDuur;
 
   return (
-    <Animated.View style={[stijlen.timerPil, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }, animStijl]}>
+    <Animated.View
+      entering={FadeIn.duration(200)}
+      exiting={FadeOut.duration(150)}
+      style={[stijlen.timerPil, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}
+    >
       <TouchableOpacity
         style={stijlen.timerPilInhoud}
-        onPress={() => router.push('/workout-session')}
+        onPress={() => {
+          if (!isOpWorkoutSessie) router.navigate('/workout-session');
+        }}
+        activeOpacity={0.8}
       >
         <View style={stijlen.timerVoortgangBalk}>
           <View style={[
@@ -98,21 +91,32 @@ function WorkoutIndicator() {
   const { kleuren } = useThema();
   const { isActief, rustTimerLoopt, verlopenTijd, routineNaam } = useLiveWorkout();
   const router = useRouterHook();
+  const segments = useSegments();
+  const isOpWorkoutSessie = segments[0] === 'workout-session' || segments.includes('workout-session');
 
-  if (!isActief || rustTimerLoopt) return null;
+  if (!isActief || rustTimerLoopt || isOpWorkoutSessie) return null;
 
   return (
-    <TouchableOpacity
-      style={[stijlen.workoutIndicator, { backgroundColor: kleuren.accent + 'DD', borderColor: kleuren.accentLicht }]}
-      onPress={() => router.push('/workout-session')}
+    <Animated.View
+      entering={FadeIn.duration(200)}
+      exiting={FadeOut.duration(150)}
+      style={{ position: 'absolute', top: 52, alignSelf: 'center', zIndex: 9998 }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Ionicons name="barbell-outline" size={14} color="#FFFFFF" />
-        <Text style={stijlen.workoutIndicatorTekst}>
-          {routineNaam || 'Workout'} · {formatTijd(verlopenTijd)}
-        </Text>
-      </View>
-    </TouchableOpacity>
+      <TouchableOpacity
+        style={[stijlen.workoutIndicator, { backgroundColor: kleuren.accent + 'DD', borderColor: kleuren.accentLicht }]}
+        onPress={() => {
+          if (!isOpWorkoutSessie) router.navigate('/workout-session');
+        }}
+        activeOpacity={0.8}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="barbell-outline" size={14} color="#FFFFFF" />
+          <Text style={stijlen.workoutIndicatorTekst}>
+            {routineNaam || 'Workout'} · {formatTijd(verlopenTijd)}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -125,6 +129,7 @@ function AppInhoud() {
       <Stack screenOptions={{ headerShown: false }} />
       <ZwevendeTimerPil />
       <WorkoutIndicator />
+      <OnboardingModal />
     </>
   );
 }

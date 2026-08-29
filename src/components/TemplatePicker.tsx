@@ -1,7 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayt – Template Picker Component
-// Horizontale scrollbare kaarten waarmee gebruikers een workout template laden.
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
@@ -25,17 +21,19 @@ import RoutineBuilder from './RoutineBuilder';
 interface TemplatePickerProps {
   onSelecteer: (routine: Routine) => void;
   actieveOefening?: string;
-  verversFlag?: number; // Trigger refresh
+  verversFlag?: number;
 }
 
 function TemplateKaart({
   template,
   actief,
+  kleuren,
   onDruk,
 }: {
-  template:  Routine;
-  actief:    boolean;
-  onDruk:    () => void;
+  template: Routine;
+  actief: boolean;
+  kleuren: any;
+  onDruk: () => void;
 }) {
   const schaal = useSharedValue(1);
 
@@ -59,11 +57,12 @@ function TemplateKaart({
         accessibilityLabel={`Template ${template.naam} laden`}
       >
         <LinearGradient
-          colors={['#4F46E5', '#7C3AED']}
+          colors={[kleuren.accentSecundair, kleuren.accent]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
             stijlen.kaart,
+            { shadowColor: kleuren.accent },
             actief && stijlen.kaartActief,
           ]}
         >
@@ -71,8 +70,9 @@ function TemplateKaart({
           <Text style={stijlen.naam}>{template.naam}</Text>
           <Text style={stijlen.detail} numberOfLines={1}>{template.oefeningen.length} oefeningen</Text>
           {actief && (
-            <View style={stijlen.actiefBadge}>
-              <Text style={stijlen.actiefTekst}>✓ Actief</Text>
+            <View style={[stijlen.actiefBadge, { flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
+              <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
+              <Text style={stijlen.actiefTekst}>Actief</Text>
             </View>
           )}
         </LinearGradient>
@@ -82,6 +82,7 @@ function TemplateKaart({
 }
 
 export default function TemplatePicker({ onSelecteer, actieveOefening, verversFlag }: TemplatePickerProps) {
+  const { kleuren } = useThema();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [builderZichtbaar, setBuilderZichtbaar] = useState(false);
 
@@ -107,11 +108,11 @@ export default function TemplatePicker({ onSelecteer, actieveOefening, verversFl
         contentContainerStyle={stijlen.scroll}
       >
         <TouchableOpacity
-          style={[stijlen.kaart, stijlen.nieuwKnop]}
+          style={[stijlen.kaart, stijlen.nieuwKnop, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}
           onPress={() => setBuilderZichtbaar(true)}
         >
-          <Ionicons name="add" size={32} color="#FFFFFF" />
-          <Text style={stijlen.detail}>Nieuw</Text>
+          <Ionicons name="add" size={32} color={kleuren.accent} />
+          <Text style={[stijlen.detail, { color: kleuren.tekstGedimpt }]}>Nieuw</Text>
         </TouchableOpacity>
 
         {routines.map((r) => (
@@ -119,6 +120,7 @@ export default function TemplatePicker({ onSelecteer, actieveOefening, verversFl
             key={r.id}
             template={r}
             actief={actieveOefening === r.naam}
+            kleuren={kleuren}
             onDruk={() => handleSelecteer(r)}
           />
         ))}
@@ -147,21 +149,17 @@ const stijlen = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     alignItems: 'center',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
     elevation: 6,
-    backgroundColor: '#374151',
   },
   nieuwKnop: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.3)',
     justifyContent: 'center',
   },
   kaartActief: {
-    shadowColor: '#7C3AED',
     shadowOpacity: 0.5,
     shadowRadius: 12,
     elevation: 10,

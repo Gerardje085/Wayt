@@ -1,9 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayt – Rust-Timer Component
-// Circulaire afteltimer die automatisch start na het opslaan van een workout.
-// Stuurt een lokale notificatie als de app op de achtergrond staat.
-// Geeft haptic feedback als de rust voorbij is.
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
@@ -20,78 +14,71 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Svg, Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { useThema } from '../context/ThemeContext';
 
-// Laat toe dat Animated met SVG-props werkt
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// Notificatie-handler instellen (toon ook als app op voorgrond staat)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
-    shouldPlaySound:  false,
-    shouldSetBadge:   false,
-    shouldShowList:   true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+    shouldShowList: true,
   }),
 });
 
-const RING_RADIUS  = 54;
-const RING_OMTREK  = 2 * Math.PI * RING_RADIUS;
+const RING_RADIUS = 54;
+const RING_OMTREK = 2 * Math.PI * RING_RADIUS;
 
 const DUUR_OPTIES: Array<{ label: string; seconden: number }> = [
-  { label: '60s',  seconden: 60  },
-  { label: '90s',  seconden: 90  },
+  { label: '60s', seconden: 60 },
+  { label: '90s', seconden: 90 },
   { label: '2min', seconden: 120 },
   { label: '3min', seconden: 180 },
 ];
 
 interface RustTimerProps {
-  zichtbaar:  boolean;
-  onSluiten:  () => void;
+  zichtbaar: boolean;
+  onSluiten: () => void;
 }
 
 export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
-  const { kleuren }                = useThema();
-  const [startTijd,  setStartTijd] = useState(90);
-  const [restTijd,   setRestTijd]  = useState(90);
-  const [loopt,      setLoopt]     = useState(false);
-  const [afgelopen,  setAfgelopen] = useState(false);
-  const intervalRef                = useRef<ReturnType<typeof setInterval> | null>(null);
-  const notifIdRef                 = useRef<string | null>(null);
-  // Ref om restTijd bij te houden zonder re-render te triggeren (voorkomt Reanimated strict mode warning)
-  const restTijdRef                = useRef(90);
-  const startTijdRef               = useRef(90);
+  const { kleuren } = useThema();
+  const [startTijd, setStartTijd] = useState(90);
+  const [restTijd, setRestTijd] = useState(90);
+  const [loopt, setLoopt] = useState(false);
+  const [afgelopen, setAfgelopen] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notifIdRef = useRef<string | null>(null);
+  const restTijdRef = useRef(90);
+  const startTijdRef = useRef(90);
 
-  // Geanimeerde voortgangsring – 0 = volledig gevuld (begin), 1 = leeg (klaar)
-  const voortgang  = useSharedValue(0);
+  const voortgang = useSharedValue(0);
 
   const animatedProps = useAnimatedProps(() => ({
     strokeDashoffset: RING_OMTREK * voortgang.value,
   }));
 
-  // ── Animeer ring op basis van restTijd state (buiten render, in effect) ──
   useEffect(() => {
     restTijdRef.current = restTijd;
     const verloop = Math.max(0, Math.min(1, (startTijdRef.current - restTijd) / startTijdRef.current));
     voortgang.value = withTiming(verloop, { duration: 400, easing: Easing.out(Easing.quad) });
   }, [restTijd]);
 
-  // Vraag notificatie-toestemming bij eerste render
   useEffect(() => {
     Notifications.requestPermissionsAsync();
   }, []);
 
-  // Reset bij openen
   useEffect(() => {
     if (zichtbaar) {
       resetTimer(startTijd);
-      setLoopt(true); // automatisch starten
+      setLoopt(true);
     }
   }, [zichtbaar]);
 
-  // Interval-beheer
   useEffect(() => {
     if (loopt && restTijd > 0) {
       intervalRef.current = setInterval(() => {
@@ -113,7 +100,6 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
     };
   }, [loopt]);
 
-  // ── +15s / -15s aanpassing: gebruik dezelfde formule als de interval ──────
   const pasTijdAan = useCallback((delta: number) => {
     setRestTijd((prev) => {
       const nieuw = Math.max(0, prev + delta);
@@ -133,7 +119,7 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Rust voorbij!',
-        body:  'Klaar om de volgende set te doen? Pak die gewichten!',
+        body: 'Klaar om de volgende set te doen? Pak die gewichten!',
         sound: true,
       },
       trigger: null,
@@ -149,7 +135,7 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Rust voorbij!',
-        body:  'Jouw rusttijd is om. Tijd voor de volgende set!',
+        body: 'Jouw rusttijd is om. Tijd voor de volgende set!',
         sound: true,
       },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secondenOver },
@@ -161,7 +147,7 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
     if (intervalRef.current) clearInterval(intervalRef.current);
     const d = nieuweDuur ?? startTijdRef.current;
     startTijdRef.current = d;
-    restTijdRef.current  = d;
+    restTijdRef.current = d;
     setRestTijd(d);
     setLoopt(false);
     setAfgelopen(false);
@@ -194,10 +180,10 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
     onSluiten();
   }
 
-  const minuten  = Math.floor(Math.max(0, restTijd) / 60).toString().padStart(2, '0');
+  const minuten = Math.floor(Math.max(0, restTijd) / 60).toString().padStart(2, '0');
   const seconden = (Math.max(0, restTijd) % 60).toString().padStart(2, '0');
 
-  const ringKleur = afgelopen ? '#34D399' : loopt ? '#7C3AED' : '#9090C0';
+  const ringKleur = afgelopen ? kleuren.succes : loopt ? kleuren.accent : kleuren.tekstGedimpt;
 
   return (
     <Modal
@@ -207,13 +193,11 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
       onRequestClose={handleSluiten}
     >
       <View style={stijlen.overlay}>
-        <View style={[stijlen.modal, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-          {/* Titel */}
+        <View style={[stijlen.modal, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand, shadowColor: kleuren.accent }]}>
           <Text style={[stijlen.titel, { color: kleuren.tekstSecundair }]}>
             {afgelopen ? 'Rust Voorbij!' : 'Rust-Timer'}
           </Text>
 
-          {/* Duur-knoppen */}
           <View style={stijlen.duurRij}>
             {DUUR_OPTIES.map((opt) => (
               <TouchableOpacity
@@ -222,7 +206,7 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
                   stijlen.duurKnop,
                   {
                     backgroundColor: startTijd === opt.seconden ? kleuren.accentGedimpt : kleuren.achtergrond,
-                    borderColor:     startTijd === opt.seconden ? kleuren.accent : kleuren.kaartRand,
+                    borderColor: startTijd === opt.seconden ? kleuren.accent : kleuren.kaartRand,
                   },
                 ]}
                 onPress={() => {
@@ -239,7 +223,6 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
             ))}
           </View>
 
-          {/* Circulaire ring */}
           <View style={stijlen.ringContainer}>
             <Svg width={140} height={140} viewBox="0 0 140 140">
               <Circle
@@ -261,7 +244,7 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
             </Svg>
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
               <View style={stijlen.tijdCentreer}>
-                <Text style={[stijlen.tijdTekst, { color: afgelopen ? '#34D399' : kleuren.tekst }]}>
+                <Text style={[stijlen.tijdTekst, { color: afgelopen ? kleuren.succes : kleuren.tekst }]}>
                   {afgelopen ? '00:00' : `${minuten}:${seconden}`}
                 </Text>
                 <Text style={[stijlen.tijdLabel, { color: kleuren.tekstGedimpt }]}>
@@ -271,7 +254,6 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
             </View>
           </View>
 
-          {/* Knoppen */}
           <View style={stijlen.actieRij}>
             <TouchableOpacity
               style={[stijlen.iconKnop, { backgroundColor: kleuren.achtergrond, borderColor: kleuren.kaartRand }]}
@@ -282,11 +264,12 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[stijlen.actieKnop, { backgroundColor: !loopt ? kleuren.achtergrondSecundair : kleuren.accent }]}
+              style={[stijlen.actieKnop, { backgroundColor: !loopt ? kleuren.achtergrondSecundair : kleuren.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
               onPress={togglePauze}
             >
+              <Ionicons name={!loopt ? 'play' : 'pause'} size={15} color={!loopt ? kleuren.tekst : '#FFFFFF'} style={{ marginRight: 6 }} />
               <Text style={[stijlen.actieTekst, { color: !loopt ? kleuren.tekst : '#FFFFFF' }]}>
-                {!loopt ? '▶ Hervatten' : '⏸ Pauzeren'}
+                {!loopt ? 'Hervatten' : 'Pauzeren'}
               </Text>
             </TouchableOpacity>
 
@@ -299,7 +282,6 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
             </TouchableOpacity>
           </View>
 
-          {/* Sluiten */}
           <TouchableOpacity onPress={handleSluiten} style={stijlen.sluitenKnop} accessibilityLabel="Timer sluiten">
             <Text style={[stijlen.sluitenTekst, { color: kleuren.tekstGedimpt }]}>Sluiten</Text>
           </TouchableOpacity>
@@ -324,7 +306,6 @@ const stijlen = StyleSheet.create({
     padding: 24,
     borderWidth: 1,
     alignItems: 'center',
-    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 24,

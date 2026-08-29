@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { OEFENINGEN_DB } from '../data/exercises';
+import { OEFENINGEN_DB, findExercise } from '../data/exercises';
 import { bereken1RM } from '../context/LiveWorkoutContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ export function useStatistieken(userId: string | undefined): StatResult {
       // ─── Spiergroep verdeling (laatste 7 dagen) ───────────────────────────
       const groepTelMap = new Map<string, number>();
       for (const w of weekWorkouts) {
-        const oef = OEFENINGEN_DB.find(o => o.id === w.exercise);
+        const oef = findExercise(w.exercise);
         if (oef) {
           groepTelMap.set(oef.groep, (groepTelMap.get(oef.groep) || 0) + (w.sets || 1));
         }
@@ -135,7 +135,7 @@ export function useStatistieken(userId: string | undefined): StatResult {
         const eenRM = bereken1RM(gewicht, reps);
         const huidig = prMap.get(w.exercise);
         if (!huidig || eenRM > huidig.eenRM) {
-          const oefNaam = OEFENINGEN_DB.find(o => o.id === w.exercise)?.naam ?? w.exercise;
+          const oefNaam = findExercise(w.exercise)?.naam ?? w.exercise;
           prMap.set(w.exercise, {
             oefeningId:   w.exercise,
             oefeningNaam: oefNaam,

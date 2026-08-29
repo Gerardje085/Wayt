@@ -14,7 +14,7 @@ import { useThema } from '../context/ThemeContext';
 import { WORKOUT_TEMPLATES } from '../data/templates';
 import { saveRoutine } from '../lib/routineStore';
 import type { Template } from '../types';
-import { OEFENINGEN_DB } from '../data/exercises';
+import { findExercise } from '../data/exercises';
 
 interface TemplatesModalProps {
   zichtbaar: boolean;
@@ -41,7 +41,7 @@ export default function TemplatesModal({ zichtbaar, onSluiten, onOpgeslagen }: T
       })),
     });
 
-    Alert.alert('Opgeslagen! 🎉', `"${template.naam}" is toegevoegd aan Mijn Routines.`);
+    Alert.alert('Opgeslagen', `"${template.naam}" is toegevoegd aan Mijn Routines.`);
     onOpgeslagen();
     onSluiten();
   };
@@ -77,7 +77,7 @@ export default function TemplatesModal({ zichtbaar, onSluiten, onOpgeslagen }: T
               <View style={stijlen.kaartInhoud}>
                 {/* Oefeningen lijst */}
                 {item.oefeningen.map((oe, i) => {
-                  const info = OEFENINGEN_DB.find(o => o.id === oe.id);
+                  const info = findExercise(oe.id);
                   return (
                     <View key={i} style={[stijlen.oefeningRij, { borderBottomColor: kleuren.kaartRand }]}>
                       <View style={[stijlen.nummerBadge, { backgroundColor: kleuren.accentGedimpt }]}>

@@ -1,6 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayt – Tab Navigator Layout (3 tabs: Home, Trainen, Oefeningen)
-// ─────────────────────────────────────────────────────────────────────────────
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Platform, View, Text, StyleSheet } from 'react-native';
@@ -20,8 +17,8 @@ function TabIcoon({ naam, focused, color, label }: {
 }
 
 export default function TabLayout() {
-  const { kleuren }    = useThema();
-  const { isActief }   = useLiveWorkout();
+  const { kleuren } = useThema();
+  const { isActief } = useLiveWorkout();
 
   return (
     <Tabs
@@ -30,13 +27,13 @@ export default function TabLayout() {
         tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: kleuren.kaart,
-          borderTopColor:  kleuren.kaartRand,
-          borderTopWidth:  1,
-          height:  Platform.OS === 'ios' ? 82 : 62,
+          borderTopColor: kleuren.kaartRand,
+          borderTopWidth: 1,
+          height: Platform.OS === 'ios' ? 82 : 62,
           paddingBottom: Platform.OS === 'ios' ? 24 : 8,
           paddingTop: 8,
         },
-        tabBarActiveTintColor:   kleuren.accent,
+        tabBarActiveTintColor: kleuren.accent,
         tabBarInactiveTintColor: kleuren.tekstGedimpt,
       }}
     >
@@ -62,6 +59,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="progress"
+        options={{
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcoon naam={focused ? 'stats-chart' : 'stats-chart-outline'} focused={focused} color={color} label="Voortgang" />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="exercises"
         options={{
           tabBarIcon: ({ focused, color }) => (
@@ -69,9 +74,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* Verborgen tabs */}
-      <Tabs.Screen name="progress" options={{ href: null }} />
-      <Tabs.Screen name="admin"    options={{ href: null }} />
+      <Tabs.Screen name="admin" options={{ href: null }} />
     </Tabs>
   );
 }

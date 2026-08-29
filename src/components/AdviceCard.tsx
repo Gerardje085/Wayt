@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getStatusLabel } from '../utils/algorithm';
 import { SkeletonAdviesKaart } from './SkeletonLoader';
 import { useThema } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import type { Voorschrift, Workout } from '../types';
 
 interface AdviceCardProps {
@@ -24,26 +25,28 @@ interface AdviceCardProps {
 
 export default function AdviceCard({ voorschrift, vorigeSessie, laden }: AdviceCardProps) {
   const { kleuren } = useThema();
+  const { profile } = useAuth();
 
   // Intrede-animatie: slide-up + fade-in
   const vertaalY  = useSharedValue(20);
   const opaciteit = useSharedValue(0);
 
   useEffect(() => {
-    if (!laden && voorschrift) {
+    if (!laden && voorschrift && profile?.group_type === 'app') {
       vertaalY.value  = withSpring(0,   { damping: 18, stiffness: 200 });
       opaciteit.value = withTiming(1,   { duration: 400, easing: Easing.out(Easing.quad) });
     } else {
       vertaalY.value  = 20;
       opaciteit.value = 0;
     }
-  }, [laden, voorschrift, vertaalY, opaciteit]);
+  }, [laden, voorschrift, profile?.group_type, vertaalY, opaciteit]);
 
   const animStijl = useAnimatedStyle(() => ({
     transform:  [{ translateY: vertaalY.value }],
     opacity:    opaciteit.value,
   }));
 
+  if (profile?.group_type !== 'app') return null;
   if (laden) return <SkeletonAdviesKaart />;
   if (!voorschrift) return null;
 

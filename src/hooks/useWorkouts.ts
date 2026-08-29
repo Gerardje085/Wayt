@@ -183,7 +183,7 @@ export function useOpslaanWorkout(): OpslaanResult {
       }
 
       if (succesvol > 0) {
-        console.log(`✅ ${succesvol} offline workouts gesynchroniseerd`);
+        console.log(`[Sync] ${succesvol} offline workouts gesynchroniseerd`);
         hertelOffline();
       }
       syncBezig.current = false;

@@ -1,27 +1,23 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayt – Dashboard Tab (Statistieken & Motivatie)
-// Consistency Calendar + Week Stats + Spiergroep Donut + PR's
-// ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, SafeAreaView,
   RefreshControl, TouchableOpacity, Dimensions
 } from 'react-native';
-import Svg, { Path, Circle, G } from 'react-native-svg';
-import { Ionicons }           from '@expo/vector-icons';
-import { useAuth }           from '../../src/context/AuthContext';
-import { useThema }          from '../../src/context/ThemeContext';
-import { useStatistieken }   from '../../src/hooks/useStatistieken';
-import type { DagData, SpiergroepVerdeling, PersonalRecord } from '../../src/hooks/useStatistieken';
+import Svg, { Circle, G } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../src/context/AuthContext';
+import { useThema } from '../../src/context/ThemeContext';
+import { useStatistieken } from '../../src/hooks/useStatistieken';
+import type { DagData, SpiergroepVerdeling } from '../../src/hooks/useStatistieken';
+import MetingModal from '../../src/components/MetingModal';
+import HerstelHeatmap from '../../src/components/HerstelHeatmap';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-
-// ─── Consistency Calendar ────────────────────────────────────────────────────
 
 function ConsistencyCalendar({ heatmap, kleuren }: { heatmap: DagData[]; kleuren: any }) {
   const CEL = 13;
   const GAP = 3;
-  const COLS = 15; // 15 weken ~ 105 dagen
   const dagMap = useMemo(() => {
     const m = new Map<string, number>();
     heatmap.forEach(d => m.set(d.datum, d.count));
@@ -70,10 +66,8 @@ function ConsistencyCalendar({ heatmap, kleuren }: { heatmap: DagData[]; kleuren
   );
 }
 
-// ─── Donut Chart ─────────────────────────────────────────────────────────────
-
 function DonutChart({ data, kleuren }: { data: SpiergroepVerdeling[]; kleuren: any }) {
-  const SIZE   = 140;
+  const SIZE = 140;
   const RADIUS = 54;
   const CX = SIZE / 2;
   const CY = SIZE / 2;
@@ -100,9 +94,7 @@ function DonutChart({ data, kleuren }: { data: SpiergroepVerdeling[]; kleuren: a
 
   return (
     <Svg width={SIZE} height={SIZE}>
-      {/* Achtergrond cirkel */}
       <Circle cx={CX} cy={CY} r={RADIUS} stroke={kleuren.kaartRand} strokeWidth={STROKE} fill="none" />
-      {/* Segmenten */}
       {segmenten.map((seg, i) => (
         <Circle
           key={i}
@@ -115,7 +107,6 @@ function DonutChart({ data, kleuren }: { data: SpiergroepVerdeling[]; kleuren: a
           strokeLinecap="butt"
         />
       ))}
-      {/* Midden tekst */}
       <G>
         <Circle cx={CX} cy={CY} r={RADIUS - STROKE / 2 - 2} fill={kleuren.kaart} />
       </G>
@@ -123,19 +114,19 @@ function DonutChart({ data, kleuren }: { data: SpiergroepVerdeling[]; kleuren: a
   );
 }
 
-// ─── Hoofd component ──────────────────────────────────────────────────────────
-
 export default function DashboardScreen() {
-  const { user }    = useAuth();
+  const { user } = useAuth();
   const { kleuren } = useThema();
-  const { laadStatistieken, data, laden, fout } = useStatistieken(user?.id);
+  const router = useRouter();
+  const { laadStatistieken, data, laden } = useStatistieken(user?.id);
+  const [metingZichtbaar, setMetingZichtbaar] = useState(false);
 
   useEffect(() => { laadStatistieken(); }, [laadStatistieken]);
 
   const weekStat = data?.weekStat;
-  const heatmap  = data?.heatmap ?? [];
+  const heatmap = data?.heatmap ?? [];
   const verdeling = data?.spiergroepVerdeling ?? [];
-  const prs      = data?.prs ?? [];
+  const prs = data?.prs ?? [];
 
   return (
     <SafeAreaView style={[s.veilig, { backgroundColor: kleuren.achtergrond }]}>
@@ -147,19 +138,35 @@ export default function DashboardScreen() {
             tintColor={kleuren.accent} colors={[kleuren.accent]} />
         }
       >
-        {/* Header */}
-        <View style={s.header}>
-          <Text style={[s.headerTitel, { color: kleuren.tekst }]}>Jouw Voortgang</Text>
-          <Text style={[s.headerSub, { color: kleuren.tekstGedimpt }]}>Laatste 90 dagen</Text>
+        <View style={s.headerRij}>
+          <View>
+            <Text style={[s.headerTitel, { color: kleuren.tekst }]}>Jouw Voortgang</Text>
+            <Text style={[s.headerSub, { color: kleuren.tekstGedimpt }]}>Laatste 90 dagen</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={[s.metingKnop, { backgroundColor: kleuren.waarschuwing + '22', borderColor: kleuren.waarschuwing + '55' }]}
+              onPress={() => setMetingZichtbaar(true)}
+              accessibilityLabel="Officiele 1RM meting starten"
+            >
+              <Ionicons name="trophy-outline" size={16} color={kleuren.waarschuwing} />
+              <Text style={[s.metingKnopTekst, { color: kleuren.waarschuwing }]}>1RM</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.instellingenKnop, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}
+              onPress={() => router.push('/(tabs)/admin')}
+              accessibilityLabel="Onderzoeksdata openen"
+            >
+              <Ionicons name="settings-outline" size={20} color={kleuren.tekstGedimpt} />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Consistency Calendar */}
         <View style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           <Text style={[s.kaartTitel, { color: kleuren.tekstGedimpt }]}>CONSISTENTIE</Text>
           <ConsistencyCalendar heatmap={heatmap} kleuren={kleuren} />
         </View>
 
-        {/* Week Statistieken */}
         <Text style={[s.sectieLabel, { color: kleuren.tekstGedimpt }]}>DEZE WEEK</Text>
         <View style={s.statRij}>
           {[
@@ -175,7 +182,6 @@ export default function DashboardScreen() {
           ))}
         </View>
 
-        {/* Spiergroep Verdeling */}
         <Text style={[s.sectieLabel, { color: kleuren.tekstGedimpt }]}>SPIERGROEP BALANS</Text>
         <View style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           {verdeling.length === 0 ? (
@@ -198,7 +204,6 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        {/* Personal Records */}
         <Text style={[s.sectieLabel, { color: kleuren.tekstGedimpt }]}>PERSOONLIJKE RECORDS</Text>
         {prs.length === 0 ? (
           <View style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
@@ -219,23 +224,42 @@ export default function DashboardScreen() {
                   {pr.gewicht}kg × {pr.reps}
                 </Text>
               </View>
-              <Ionicons name="trophy-outline" size={20} color="#F59E0B" />
+              <Ionicons name="trophy-outline" size={20} color={kleuren.waarschuwing} />
             </View>
           ))
         )}
 
+        <Text style={[s.sectieLabel, { color: kleuren.tekstGedimpt }]}>HERSTELSTATUS (72U)</Text>
+        <View style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
+          <HerstelHeatmap userId={user?.id} />
+        </View>
+
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      <MetingModal zichtbaar={metingZichtbaar} onSluiten={() => setMetingZichtbaar(false)} />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  veilig:       { flex: 1 },
-  inhoud:       { padding: 20 },
-  header:       { marginBottom: 20 },
-  headerTitel:  { fontSize: 30, fontFamily: 'Inter_900Black', letterSpacing: -1 },
-  headerSub:    { fontSize: 14, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  veilig: { flex: 1 },
+  inhoud: { padding: 20 },
+  headerRij: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  headerTitel: { fontSize: 30, fontFamily: 'Inter_900Black', letterSpacing: -1 },
+  headerSub: { fontSize: 14, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  instellingenKnop: {
+    width: 42, height: 42, borderRadius: 14, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  metingKnop: {
+    height: 42, borderRadius: 14, borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 12, gap: 5,
+  },
+  metingKnopTekst: {
+    fontSize: 13, fontFamily: 'Inter_700Bold',
+  },
 
   kaart: {
     borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 16,
@@ -250,31 +274,30 @@ const s = StyleSheet.create({
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
   },
 
-  statRij:  { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  statRij: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   statKaart: {
     flex: 1, borderWidth: 1, borderRadius: 16, padding: 14, alignItems: 'center',
   },
   statWaarde: { fontSize: 22, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
-  statLabel:  { fontSize: 11, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
+  statLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
 
-  donutRij:   { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  donutRij: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   legendaLijst: { flex: 1, gap: 8 },
-  legendaItem:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  legendaDot:   { width: 10, height: 10, borderRadius: 5 },
-  legendaNaam:  { flex: 1, fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  legendaSets:  { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  legendaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  legendaDot: { width: 10, height: 10, borderRadius: 5 },
+  legendaNaam: { flex: 1, fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  legendaSets: { fontSize: 12, fontFamily: 'Inter_400Regular' },
 
   prRij: {
     flexDirection: 'row', alignItems: 'center', borderWidth: 1,
     borderRadius: 14, padding: 14, marginBottom: 8,
   },
-  prLinks:   { flex: 1 },
-  prNaam:    { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  prDatum:   { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  prRechts:  { alignItems: 'flex-end', marginRight: 12 },
-  prEenRM:   { fontSize: 18, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
-  prDetail:  { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  prTrofee:  { fontSize: 20 },
+  prLinks: { flex: 1 },
+  prNaam: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  prDatum: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  prRechts: { alignItems: 'flex-end', marginRight: 12 },
+  prEenRM: { fontSize: 18, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
+  prDetail: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
 
   leegTekst: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', padding: 16, lineHeight: 22 },
 });

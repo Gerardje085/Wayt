@@ -1,15 +1,11 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayt – Routine Details Screen
-// Toont de details van een specifieke routine voordat je deze start.
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThema } from '../../src/context/ThemeContext';
 import { getRoutines, Routine } from '../../src/lib/routineStore';
-import { OEFENINGEN_DB } from '../../src/data/exercises';
+import { findExercise, getMediaUrl } from '../../src/data/exercises';
 import RoutineBuilder from '../../src/components/RoutineBuilder';
 
 export default function RoutineDetailsScreen() {
@@ -38,7 +34,6 @@ export default function RoutineDetailsScreen() {
   }
 
   const startRoutine = () => {
-    // Navigeer naar dashboard en geef de routineId mee zodat hij daar gestart wordt
     router.push({
       pathname: '/(tabs)/dashboard',
       params: { routineId: routine.id }
@@ -47,7 +42,6 @@ export default function RoutineDetailsScreen() {
 
   return (
     <SafeAreaView style={[stijlen.container, { backgroundColor: kleuren.achtergrond }]}>
-      {/* Header */}
       <View style={[stijlen.header, { borderBottomColor: kleuren.kaartRand }]}>
         <TouchableOpacity style={stijlen.terugKnop} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={kleuren.tekstSecundair} />
@@ -58,29 +52,35 @@ export default function RoutineDetailsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Inhoud */}
       <ScrollView style={stijlen.scroll} contentContainerStyle={stijlen.inhoud}>
         <Text style={[stijlen.sectieLabel, { color: kleuren.accent }]}>Oefeningen</Text>
-        
+
         {routine.oefeningen.map((item, index) => {
-          const oefInfo = OEFENINGEN_DB.find((o) => o.id === item.id);
+          const oefInfo = findExercise(item.id);
           const isTijd = oefInfo?.type === 'tijd';
-          
+          const mediaUri = oefInfo?.image_url || getMediaUrl(oefInfo?.image);
+
           return (
             <View key={index} style={[stijlen.oefeningKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
               <View style={stijlen.oefeningHeader}>
-                <View style={[stijlen.nummerBadge, { backgroundColor: kleuren.accent + '22' }]}>
-                  <Text style={[stijlen.nummerTekst, { color: kleuren.accent }]}>{index + 1}</Text>
+                <View style={[stijlen.thumbContainer, { backgroundColor: '#FFFFFF', borderColor: kleuren.kaartRand }]}>
+                  {mediaUri ? (
+                    <Image source={{ uri: mediaUri }} style={stijlen.thumbImage} resizeMode="contain" />
+                  ) : (
+                    <Ionicons name={(oefInfo?.icoon as any) ?? 'barbell-outline'} size={20} color={kleuren.accent} />
+                  )}
                 </View>
-                <Text style={[stijlen.oefeningNaam, { color: kleuren.tekst }]}>
-                  {oefInfo ? oefInfo.naam : item.id}
-                </Text>
-                {oefInfo?.icoon ? (
-                  <Ionicons name={oefInfo.icoon as any} size={20} color={kleuren.tekstGedimpt} />
-                ) : null}
+                <View style={{ flex: 1 }}>
+                  <Text style={[stijlen.oefeningNaam, { color: kleuren.tekst }]} numberOfLines={1}>
+                    {oefInfo ? oefInfo.naam : item.id}
+                  </Text>
+                  <Text style={[stijlen.oefeningSub, { color: kleuren.tekstGedimpt }]}>
+                    {oefInfo?.groep ?? 'Spiergroep'}
+                  </Text>
+                </View>
               </View>
 
-              <View style={stijlen.detailsRij}>
+              <View style={[stijlen.detailsRij, { backgroundColor: kleuren.achtergrond }]}>
                 <View style={stijlen.detailKolom}>
                   <Text style={[stijlen.detailLabel, { color: kleuren.tekstGedimpt }]}>Sets</Text>
                   <Text style={[stijlen.detailWaarde, { color: kleuren.tekst }]}>{item.sets?.length || 0}</Text>
@@ -102,10 +102,9 @@ export default function RoutineDetailsScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Start Knop */}
       <View style={[stijlen.footer, { borderTopColor: kleuren.kaartRand, backgroundColor: kleuren.achtergrond }]}>
         <TouchableOpacity style={stijlen.startContainer} onPress={startRoutine} activeOpacity={0.8}>
-          <LinearGradient colors={['#7C3AED', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={stijlen.startKnop}>
+          <LinearGradient colors={[kleuren.accent, kleuren.accentLicht]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={stijlen.startKnop}>
             <Ionicons name="play" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
             <Text style={stijlen.startTekst}>Routine Starten</Text>
           </LinearGradient>
@@ -154,28 +153,33 @@ const stijlen = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    gap: 10,
   },
-  nummerBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
+  thumbContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
     justifyContent: 'center',
-    marginRight: 10,
+    alignItems: 'center',
   },
-  nummerTekst: {
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
+  thumbImage: {
+    width: '100%',
+    height: '100%',
   },
   oefeningNaam: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+  },
+  oefeningSub: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    marginTop: 2,
   },
   detailsRij: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: 'rgba(0,0,0,0.1)', // Subtiele donkerte op light en dark thema's
     borderRadius: 8,
     paddingVertical: 12,
   },

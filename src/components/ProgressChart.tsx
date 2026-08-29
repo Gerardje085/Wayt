@@ -1,8 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayt – ProgressChart (TypeScript + Skeleton + Fade-in animatie)
-// Updated to accept either workouts array or oefeningId + useVoortgang
-// ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect } from 'react';
+﻿import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,19 +12,29 @@ import { SkeletonBlok } from './SkeletonLoader';
 import { useThema } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useVoortgang } from '../hooks/useWorkouts';
+import { bereken1RM } from '../context/LiveWorkoutContext';
 import type { Workout } from '../types';
 
 const { width: SCHERM_BREEDTE } = Dimensions.get('window');
 const GRAFIEK_BREEDTE = SCHERM_BREEDTE - 40;
 
+export type GrafiekModus = 'volume' | 'arbeid' | 'eenRM';
+
 interface ProgressChartProps {
   workouts?:   Workout[];
   laden?:      boolean;
-  oefeningId?: string;  // Alternatief: laad zelf de data op
+  oefeningId?: string;
   kleuren?:    any;
+  modus?:      GrafiekModus;
 }
 
-export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp, oefeningId, kleuren: kleurenProp }: ProgressChartProps) {
+const MODUS_CONFIG: Record<GrafiekModus, { label: string; suffix: string; noot: string }> = {
+  volume: { label: 'Volume (kg) per Sessie', suffix: ' kg', noot: '* Volume = sets x reps x gewicht' },
+  arbeid: { label: 'Arbeid (Joules) per Sessie', suffix: ' J', noot: '* Arbeid = gewicht x 9,81 x slaglengte x reps' },
+  eenRM:  { label: 'Geschat 1RM per Sessie', suffix: ' kg', noot: '* Epley-formule: gewicht x (1 + reps / 30)' },
+};
+
+export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp, oefeningId, kleuren: kleurenProp, modus = 'volume' }: ProgressChartProps) {
   const { kleuren: themaKleuren } = useThema();
   const kleuren = kleurenProp ?? themaKleuren;
   const { user }  = useAuth();
@@ -74,14 +80,21 @@ export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp
     );
   }
 
-  const labels   = workouts.map((w) =>
+  const labels = workouts.map(w =>
     new Date(w.date).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
   );
-  const data     = workouts.map((w) => parseFloat(String(w.volume)) || 0);
+
+  const dataPunten = workouts.map(w => {
+    if (modus === 'volume') return parseFloat(String(w.volume)) || 0;
+    if (modus === 'arbeid') return parseFloat(String(w.work_joules)) || 0;
+    return bereken1RM(Number(w.weight), Number(w.reps));
+  });
+
+  const modusInfo = MODUS_CONFIG[modus];
 
   const grafiekData = {
     labels,
-    datasets: [{ data, color: (op = 1) => `rgba(167, 139, 250, ${op})`, strokeWidth: 2.5 }],
+    datasets: [{ data: dataPunten, color: (op = 1) => `rgba(167, 139, 250, ${op})`, strokeWidth: 2.5 }],
   };
 
   const grafiekConfig = {
@@ -99,7 +112,7 @@ export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp
   return (
     <Animated.View style={animStijl}>
       <Text style={[stijlen.grafiekTitel, { color: kleuren.tekstSecundair }]}>
-        Volume (kg) per Sessie
+        {modusInfo.label}
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <LineChart
@@ -109,14 +122,14 @@ export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp
           chartConfig={grafiekConfig}
           bezier
           style={stijlen.grafiek}
-          yAxisSuffix=" kg"
+          yAxisSuffix={modusInfo.suffix}
           fromZero={false}
           withInnerLines
           withOuterLines={false}
         />
       </ScrollView>
       <Text style={[stijlen.nota, { color: kleuren.tekstGedimpt }]}>
-        * Volume (kg) = sets × reps × gewicht
+        {modusInfo.noot}
       </Text>
     </Animated.View>
   );
@@ -128,7 +141,6 @@ const stijlen = StyleSheet.create({
     alignItems: 'center', padding: 32, borderRadius: 16,
     borderWidth: 1, borderStyle: 'dashed', marginBottom: 16,
   },
-  geenDataIcoon:  { fontSize: 40, marginBottom: 12 },
   geenDataTitel:  { fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold', marginBottom: 6 },
   geenDataTekst:  { fontSize: 13, textAlign: 'center', fontFamily: 'Inter_400Regular', lineHeight: 18 },
   grafiekTitel:   { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold', marginBottom: 12 },

@@ -1,63 +1,55 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayt – Workout Tab (Tab 2: De kern van de app)
-// "Start Lege Workout" + Routines in kaartweergave + Mappen
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, SafeAreaView,
-  TouchableOpacity, Dimensions, Alert, RefreshControl,
+  TouchableOpacity, Alert, RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons }           from '@expo/vector-icons';
-import * as Haptics           from 'expo-haptics';
-import { useRouter }          from 'expo-router';
-import { useAuth }            from '../../src/context/AuthContext';
-import { useThema }           from '../../src/context/ThemeContext';
-import { useLiveWorkout }     from '../../src/context/LiveWorkoutContext';
-import { getRoutines, deleteRoutine, type Routine, type RoutineOefening } from '../../src/lib/routineStore';
-import { OEFENINGEN_DB, type Spiergroep }  from '../../src/data/exercises';
-import RoutineBuilder         from '../../src/components/RoutineBuilder';
-import type { LiveOefening }  from '../../src/context/LiveWorkoutContext';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../src/context/AuthContext';
+import { useThema } from '../../src/context/ThemeContext';
+import { useLiveWorkout } from '../../src/context/LiveWorkoutContext';
+import { getRoutines, deleteRoutine, type Routine } from '../../src/lib/routineStore';
+import { findExercise, type Spiergroep } from '../../src/data/exercises';
+import RoutineBuilder from '../../src/components/RoutineBuilder';
+import EmptyState from '../../src/components/ui/EmptyState';
+import type { LiveOefening } from '../../src/context/LiveWorkoutContext';
 
-const { width: W } = Dimensions.get('window');
-
-// ─── Kleur per spiergroep ─────────────────────────────────────────────────────
 const GROEP_KLEUR: Record<string, string> = {
-  Borst:     '#EF4444', Rug:       '#3B82F6',
-  Benen:     '#22C55E', Schouders: '#F59E0B',
-  Armen:     '#A855F7', Core:      '#06B6D4',
-  Cardio:    '#EC4899',
+  Borst: '#EF4444', Rug: '#3B82F6',
+  Benen: '#22C55E', Schouders: '#F59E0B',
+  Armen: '#A855F7', Core: '#06B6D4',
+  Cardio: '#EC4899', Kuiten: '#10B981', Nek: '#64748B',
 };
 
-// ─── Hulp: schatting routine duur ─────────────────────────────────────────────
 function schatDuur(routine: Routine): string {
   const aantalSets = routine.oefeningen.reduce((acc, o) => acc + o.sets.length, 0);
-  const minuten    = Math.round(aantalSets * 2.5); // ~2.5 min per set incl. rust
+  const minuten = Math.round(aantalSets * 2.5);
   return minuten < 60 ? `${minuten} min` : `${Math.floor(minuten / 60)}u ${minuten % 60}m`;
 }
 
 function uniekeSpiergroepen(routine: Routine): Spiergroep[] {
   const groepen = new Set<Spiergroep>();
   for (const oef of routine.oefeningen) {
-    const info = OEFENINGEN_DB.find(o => o.id === oef.id);
+    const info = findExercise(oef.id);
     if (info) groepen.add(info.groep);
   }
   return Array.from(groepen).slice(0, 4);
 }
 
-// ─── Routine Kaart ────────────────────────────────────────────────────────────
 function RoutineKaart({
   routine, onStart, onBewerk, onVerwijder, kleuren,
 }: {
   routine: Routine;
-  onStart:    (r: Routine) => void;
-  onBewerk:   (r: Routine) => void;
-  onVerwijder:(r: Routine) => void;
+  onStart: (r: Routine) => void;
+  onBewerk: (r: Routine) => void;
+  onVerwijder: (r: Routine) => void;
   kleuren: any;
 }) {
   const spiergroepen = uniekeSpiergroepen(routine);
-  const duur         = schatDuur(routine);
-  const aantalOef    = routine.oefeningen.length;
+  const duur = schatDuur(routine);
+  const aantalOef = routine.oefeningen.length;
 
   return (
     <TouchableOpacity
@@ -66,13 +58,12 @@ function RoutineKaart({
       onLongPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         Alert.alert(routine.naam, 'Wat wil je doen?', [
-          { text: 'Bewerken',   onPress: () => onBewerk(routine) },
+          { text: 'Bewerken', onPress: () => onBewerk(routine) },
           { text: 'Verwijderen', style: 'destructive', onPress: () => onVerwijder(routine) },
-          { text: 'Annuleren',  style: 'cancel' },
+          { text: 'Annuleren', style: 'cancel' },
         ]);
       }}
     >
-      {/* Kleurblok links */}
       <View style={[s.routineKleurblok, { backgroundColor: spiergroepen[0] ? GROEP_KLEUR[spiergroepen[0]] : kleuren.accent }]} />
 
       <View style={s.routineInhoud}>
@@ -89,7 +80,6 @@ function RoutineKaart({
           </View>
         </View>
 
-        {/* Spiergroep pills */}
         <View style={s.pillRij}>
           {spiergroepen.map(g => (
             <View key={g} style={[s.pill, { backgroundColor: GROEP_KLEUR[g] + '22', borderColor: GROEP_KLEUR[g] + '55' }]}>
@@ -99,7 +89,6 @@ function RoutineKaart({
         </View>
       </View>
 
-      {/* Start knop */}
       <TouchableOpacity
         style={[s.startKnop, { backgroundColor: kleuren.accent + '22' }]}
         onPress={() => onStart(routine)}
@@ -110,18 +99,16 @@ function RoutineKaart({
   );
 }
 
-// ─── Hoofd component ──────────────────────────────────────────────────────────
-
 export default function WorkoutTab() {
-  const router              = useRouter();
-  const { user }            = useAuth();
-  const { kleuren }         = useThema();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { kleuren } = useThema();
   const { startWorkout, isActief } = useLiveWorkout();
 
-  const [routines,          setRoutines]          = useState<Routine[]>([]);
-  const [laden,             setLaden]             = useState(false);
-  const [builderZichtbaar,  setBuilderZichtbaar]  = useState(false);
-  const [bewerkRoutine,     setBewerkRoutine]      = useState<Routine | undefined>(undefined);
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [laden, setLaden] = useState(false);
+  const [builderZichtbaar, setBuilderZichtbaar] = useState(false);
+  const [bewerkRoutine, setBewerkRoutine] = useState<Routine | undefined>(undefined);
 
   const laadRoutines = useCallback(async () => {
     setLaden(true);
@@ -135,13 +122,12 @@ export default function WorkoutTab() {
   const handleStart = useCallback((routine: Routine) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Converteer RoutineOefeningen naar LiveOefeningen
     const liveOef: LiveOefening[] = routine.oefeningen.map((o, oi) => ({
-      id:       o.id,
+      id: o.id,
       expanded: oi === 0,
-      sets:     o.sets.map(s => ({
+      sets: o.sets.map(s => ({
         ...s,
-        type:      'normaal' as const,
+        type: 'normaal' as const,
         completed: false,
       }))
     }));
@@ -183,7 +169,6 @@ export default function WorkoutTab() {
             tintColor={kleuren.accent} colors={[kleuren.accent]} />
         }
       >
-        {/* Header */}
         <View style={s.header}>
           <Text style={[s.headerTitel, { color: kleuren.tekst }]}>Trainen</Text>
           {isActief && (
@@ -197,7 +182,6 @@ export default function WorkoutTab() {
           )}
         </View>
 
-        {/* Start Lege Workout */}
         {!isActief && (
           <TouchableOpacity style={s.legeWorkoutKnop} onPress={handleLegeWorkout}>
             <LinearGradient
@@ -212,7 +196,6 @@ export default function WorkoutTab() {
           </TouchableOpacity>
         )}
 
-        {/* Routines Header */}
         <View style={s.routinesHeader}>
           <Text style={[s.routinesTitel, { color: kleuren.tekst }]}>
             Mijn Routines
@@ -226,21 +209,14 @@ export default function WorkoutTab() {
           </TouchableOpacity>
         </View>
 
-        {/* Routine Lijst */}
         {routines.length === 0 ? (
-          <View style={[s.leegKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-          <Ionicons name="document-text-outline" size={40} color={kleuren.tekstGedimpt} style={{ marginBottom: 12 }} />
-            <Text style={[s.leegTitel, { color: kleuren.tekst }]}>Geen routines</Text>
-            <Text style={[s.leegSub, { color: kleuren.tekstGedimpt }]}>
-              Maak je eerste routine aan om gestructureerd te trainen.
-            </Text>
-            <TouchableOpacity
-              style={[s.leegKnop, { backgroundColor: kleuren.accent }]}
-              onPress={() => setBuilderZichtbaar(true)}
-            >
-              <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold' }}>Maak Routine</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icoon="document-text-outline"
+            titel="Geen routines"
+            subtekst="Maak je eerste routine aan om gestructureerd te trainen."
+            actieTekst="Maak Routine"
+            onActie={() => setBuilderZichtbaar(true)}
+          />
         ) : (
           routines.map(r => (
             <RoutineKaart
@@ -257,7 +233,6 @@ export default function WorkoutTab() {
         <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* Routine Builder Modal */}
       <RoutineBuilder
         zichtbaar={builderZichtbaar}
         initialRoutine={bewerkRoutine}
@@ -269,8 +244,8 @@ export default function WorkoutTab() {
 }
 
 const s = StyleSheet.create({
-  veilig:  { flex: 1 },
-  inhoud:  { padding: 20 },
+  veilig: { flex: 1 },
+  inhoud: { padding: 20 },
 
   header: {
     flexDirection: 'row', justifyContent: 'space-between',
@@ -282,16 +257,16 @@ const s = StyleSheet.create({
     borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8,
   },
 
-  legeWorkoutKnop:    { borderRadius: 18, overflow: 'hidden', marginBottom: 28 },
+  legeWorkoutKnop: { borderRadius: 18, overflow: 'hidden', marginBottom: 28 },
   legeWorkoutGradient: { padding: 28, alignItems: 'center' },
-  legeWorkoutTekst:   { color: '#FFF', fontSize: 20, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
-  legeWorkoutSub:     { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 4 },
+  legeWorkoutTekst: { color: '#FFF', fontSize: 20, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
+  legeWorkoutSub: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 4 },
 
   routinesHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 14,
   },
-  routinesTitel:  { fontSize: 20, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
+  routinesTitel: { fontSize: 20, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
   nieuweRoutineKnop: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7,
@@ -302,12 +277,12 @@ const s = StyleSheet.create({
     borderWidth: 1, marginBottom: 10, overflow: 'hidden',
   },
   routineKleurblok: { width: 5, alignSelf: 'stretch' },
-  routineInhoud:    { flex: 1, padding: 14 },
-  routineNaam:      { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 6 },
-  routineMeta:      { flexDirection: 'row', gap: 14, marginBottom: 8 },
-  routineMetaItem:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  routineInhoud: { flex: 1, padding: 14 },
+  routineNaam: { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 6 },
+  routineMeta: { flexDirection: 'row', gap: 14, marginBottom: 8 },
+  routineMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   routineMetaTekst: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  pillRij:          { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  pillRij: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   pill: {
     borderRadius: 8, borderWidth: 1,
     paddingHorizontal: 8, paddingVertical: 3,
@@ -316,11 +291,4 @@ const s = StyleSheet.create({
   startKnop: {
     width: 52, alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center',
   },
-
-  leegKaart: {
-    borderWidth: 1, borderRadius: 16, padding: 32, alignItems: 'center', marginBottom: 16,
-  },
-  leegTitel: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 8 },
-  leegSub:   { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
-  leegKnop:  { borderRadius: 12, paddingVertical: 14, paddingHorizontal: 28 },
 });

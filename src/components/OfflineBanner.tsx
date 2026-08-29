@@ -10,6 +10,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
 } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 interface OfflineBannerProps {
@@ -36,7 +37,7 @@ export default function OfflineBanner({ offlineAantal = 0 }: OfflineBannerProps)
 
   return (
     <Animated.View style={[stijlen.banner, animStijl]}>
-      <Text style={stijlen.icoon}>📡</Text>
+      <Ionicons name="cloud-offline-outline" size={16} color="#FEF3C7" />
       <Text style={stijlen.tekst}>
         Geen verbinding – training wordt lokaal opgeslagen
         {offlineAantal > 0 ? ` (${offlineAantal} wachtend)` : ''}
