@@ -15,6 +15,9 @@ import { findExercise, type Spiergroep } from '../../src/data/exercises';
 import RoutineBuilder from '../../src/components/RoutineBuilder';
 import EmptyState from '../../src/components/ui/EmptyState';
 import type { LiveOefening } from '../../src/context/LiveWorkoutContext';
+import { haalLaatsteSessies } from '../../src/lib/trainingsHistorie';
+import { bouwLiveOefening } from '../../src/lib/sessieOpbouw';
+import { getDefaultRestTime } from '../../src/lib/settingsStore';
 
 const GROEP_KLEUR: Record<string, string> = {
   Borst: '#EF4444', Rug: '#3B82F6',
@@ -101,9 +104,10 @@ function RoutineKaart({
 
 export default function WorkoutTab() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { kleuren } = useThema();
   const { startWorkout, isActief } = useLiveWorkout();
+  const [starten, setStarten] = useState(false);
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [laden, setLaden] = useState(false);
@@ -119,28 +123,57 @@ export default function WorkoutTab() {
 
   useEffect(() => { laadRoutines(); }, [laadRoutines]);
 
+  const bevestigVervangen = useCallback((doorgaan: () => void) => {
+    if (!isActief) {
+      doorgaan();
+      return;
+    }
+    Alert.alert(
+      'Er loopt al een workout',
+      'Wil je verder met je huidige workout, of deze weggooien en een nieuwe starten?',
+      [
+        { text: 'Huidige hervatten', onPress: () => router.push('/workout-session') },
+        { text: 'Weggooien en starten', style: 'destructive', onPress: doorgaan },
+        { text: 'Annuleren', style: 'cancel' },
+      ],
+    );
+  }, [isActief, router]);
+
+  const startRoutine = useCallback(async (routine: Routine) => {
+    if (!user?.id || starten) return;
+    setStarten(true);
+    try {
+      const [historie, standaardRust] = await Promise.all([
+        haalLaatsteSessies(user.id, routine.oefeningen.map(o => o.id)),
+        getDefaultRestTime(),
+      ]);
+      const gezien = new Set<string>();
+      const liveOef: LiveOefening[] = [];
+      for (const o of routine.oefeningen) {
+        const opgebouwd = bouwLiveOefening(o.id, profile?.group_type, historie.sessies, standaardRust, o);
+        if (gezien.has(opgebouwd.id)) continue;
+        gezien.add(opgebouwd.id);
+        liveOef.push(opgebouwd);
+      }
+      startWorkout(routine.naam, routine.id, liveOef);
+      router.push('/workout-session');
+    } finally {
+      setStarten(false);
+    }
+  }, [user?.id, profile?.group_type, starten, startWorkout, router]);
+
   const handleStart = useCallback((routine: Routine) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const liveOef: LiveOefening[] = routine.oefeningen.map((o, oi) => ({
-      id: o.id,
-      expanded: oi === 0,
-      sets: o.sets.map(s => ({
-        ...s,
-        type: 'normaal' as const,
-        completed: false,
-      }))
-    }));
-
-    startWorkout(routine.naam, routine.id, liveOef);
-    router.push('/workout-session');
-  }, [startWorkout, router]);
+    bevestigVervangen(() => { startRoutine(routine); });
+  }, [bevestigVervangen, startRoutine]);
 
   const handleLegeWorkout = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    startWorkout('Lege Workout', null, []);
-    router.push('/workout-session');
-  }, [startWorkout, router]);
+    bevestigVervangen(() => {
+      startWorkout('Lege Workout', null, []);
+      router.push('/workout-session');
+    });
+  }, [bevestigVervangen, startWorkout, router]);
 
   const handleVerwijder = useCallback(async (routine: Routine) => {
     Alert.alert(

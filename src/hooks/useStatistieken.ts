@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { OEFENINGEN_DB, findExercise } from '../data/exercises';
 import { bereken1RM } from '../context/LiveWorkoutContext';
+import { dagenGeleden } from '../utils/datum';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,7 +20,7 @@ export interface DagData {
 export interface WeekStat {
   workouts:      number;
   totaalVolume:  number;
-  minutenGeraamd: number;
+  sets:           number;
 }
 
 export interface SpiergroepVerdeling {
@@ -74,9 +75,7 @@ export function useStatistieken(userId: string | undefined): StatResult {
     setFout(null);
 
     try {
-      const negentigDagenGeleden = new Date();
-      negentigDagenGeleden.setDate(negentigDagenGeleden.getDate() - 90);
-      const vanafDatum = negentigDagenGeleden.toISOString().split('T')[0];
+      const vanafDatum = dagenGeleden(90);
 
       const { data: workouts, error } = await supabase
         .from('workouts')
@@ -101,17 +100,15 @@ export function useStatistieken(userId: string | undefined): StatResult {
       const heatmap = Array.from(dagMap.values());
 
       // ─── Week statistieken (laatste 7 dagen) ─────────────────────────────
-      const zevenDagenGeleden = new Date();
-      zevenDagenGeleden.setDate(zevenDagenGeleden.getDate() - 7);
-      const weekDatum = zevenDagenGeleden.toISOString().split('T')[0];
-      const weekWorkouts = (workouts ?? []).filter(w => w.date >= weekDatum);
+      const weekDatum = dagenGeleden(6);
+      const weekWorkouts = (workouts ?? []).filter(w => w.date >= weekDatum && !w.is_meting);
 
       const uniekeWorkoutDagen = new Set(weekWorkouts.map(w => w.date)).size;
       const weekVolume = weekWorkouts.reduce((acc, w) => acc + (parseFloat(String(w.volume)) || 0), 0);
       const weekStat: WeekStat = {
         workouts:       uniekeWorkoutDagen,
         totaalVolume:   Math.round(weekVolume),
-        minutenGeraamd: weekWorkouts.length * 2, // schatting: 2 min per set
+        sets:           weekWorkouts.reduce((acc, w) => acc + (Number(w.sets) || 1), 0),
       };
 
       // ─── Spiergroep verdeling (laatste 7 dagen) ───────────────────────────

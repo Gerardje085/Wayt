@@ -1,8 +1,12 @@
 import React, {
   createContext, useContext, useState, useRef, useCallback, useEffect
 } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RoutineSet } from '../lib/routineStore';
+import type { Voorschrift } from '../types';
 import * as Haptics from 'expo-haptics';
+
+const OPSLAG_SLEUTEL = 'wayt_live_workout_v1';
 
 export type SetType = 'normaal' | 'warmup' | 'dropset' | 'failure';
 
@@ -10,12 +14,15 @@ export interface LiveSet extends RoutineSet {
   type: SetType;
   completed: boolean;
   vorige?: { reps: number; gewicht: number } | null;
+  doel?: { reps: number; gewicht: number } | null;
 }
 
 export interface LiveOefening {
   id: string;
   sets: LiveSet[];
   expanded: boolean;
+  voorschrift?: Voorschrift | null;
+  rustTijd?: number;
 }
 
 export interface LiveWorkoutState {
@@ -37,7 +44,7 @@ interface LiveWorkoutCtx extends LiveWorkoutState {
   setSetType: (oefeningId: string, setId: string, type: SetType) => void;
   addSet: (oefeningId: string) => void;
   removeSet: (oefeningId: string, setId: string) => void;
-  addOefening: (oefeningId: string) => void;
+  addOefening: (oefening: LiveOefening) => void;
   toggleOefening: (oefeningId: string) => void;
   startRustTimer: (duurSeconden: number) => void;
   stopRustTimer: () => void;
@@ -74,6 +81,33 @@ const LiveWorkoutContext = createContext<LiveWorkoutCtx>({
 export function LiveWorkoutProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<LiveWorkoutState>(initState);
   const [verlopenTijd, setVerlopenTijd] = useState(0);
+  const [hersteld, setHersteld] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(OPSLAG_SLEUTEL)
+      .then(ruw => {
+        if (!ruw) return;
+        const opgeslagen = JSON.parse(ruw) as LiveWorkoutState;
+        if (opgeslagen?.isActief && opgeslagen.startTijd && Array.isArray(opgeslagen.oefeningen)) {
+          setState(prev => prev.isActief ? prev : {
+            ...opgeslagen,
+            rustTimerLoopt: false,
+            rustTimerResterend: 0,
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setHersteld(true));
+  }, []);
+
+  useEffect(() => {
+    if (!hersteld) return;
+    if (state.isActief) {
+      AsyncStorage.setItem(OPSLAG_SLEUTEL, JSON.stringify(state)).catch(() => {});
+    } else {
+      AsyncStorage.removeItem(OPSLAG_SLEUTEL).catch(() => {});
+    }
+  }, [hersteld, state.isActief, state.oefeningen, state.routineNaam, state.startTijd]);
 
   const workoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const rustTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -158,10 +192,12 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
         const last = o.sets[o.sets.length - 1];
         const newSet: LiveSet = {
           id: Math.random().toString(36).substring(2, 10),
-          reps: last?.reps ?? 10,
+          reps: last?.reps ?? 0,
           gewicht: last?.gewicht ?? 0,
           type: 'normaal',
           completed: false,
+          vorige: null,
+          doel: null,
         };
         return { ...o, sets: [...o.sets, newSet] };
       })
@@ -180,20 +216,10 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
     }));
   }, []);
 
-  const addOefening = useCallback((oefeningId: string) => {
+  const addOefening = useCallback((oefening: LiveOefening) => {
     setState(prev => {
-      if (prev.oefeningen.some(o => o.id === oefeningId)) return prev;
-      const nieuweOefening: LiveOefening = {
-        id: oefeningId,
-        expanded: true,
-        sets: Array.from({ length: 3 }).map(() => ({
-          id: Math.random().toString(36).substring(2, 10),
-          reps: 10,
-          gewicht: 0,
-          type: 'normaal',
-          completed: false,
-        })),
-      };
+      if (prev.oefeningen.some(o => o.id === oefening.id)) return prev;
+      const nieuweOefening: LiveOefening = { ...oefening, expanded: true };
       return {
         ...prev,
         oefeningen: [

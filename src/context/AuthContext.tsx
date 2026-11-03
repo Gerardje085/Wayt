@@ -10,8 +10,11 @@ import React, {
   type ReactNode,
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
+
+const PROFIEL_SLEUTEL = 'wayt_profiel_v1';
 
 interface AuthContextType {
   user:      User | null;
@@ -44,16 +47,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       if (error) throw error;
       setProfile(data as Profile);
+      AsyncStorage.setItem(PROFIEL_SLEUTEL, JSON.stringify(data)).catch(() => {});
     } catch (err) {
       console.warn('Profiel ophalen mislukt:', (err as Error).message);
-      setProfile(null);
+      try {
+        const ruw = await AsyncStorage.getItem(PROFIEL_SLEUTEL);
+        const opgeslagen = ruw ? (JSON.parse(ruw) as Profile) : null;
+        setProfile(opgeslagen?.id === userId ? opgeslagen : null);
+      } catch {
+        setProfile(null);
+      }
     }
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       setSession(s);
-      haalProfielOp(s?.user?.id ?? null);
+      await haalProfielOp(s?.user?.id ?? null);
       setLaden(false);
     });
 
@@ -67,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const uitloggen = useCallback(async () => {
     await supabase.auth.signOut();
+    await AsyncStorage.removeItem(PROFIEL_SLEUTEL).catch(() => {});
     setProfile(null);
     setSession(null);
   }, []);

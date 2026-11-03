@@ -2,8 +2,13 @@ export interface Profile {
   id: string;
   username: string | null;
   group_type: 'app' | 'gevoel';
+  is_onderzoeker?: boolean;
   created_at: string;
 }
+
+export type OpgeslagenSetType = 'normaal' | 'warmup' | 'dropset' | 'failure';
+
+export type MetingMoment = 'week0' | 'week6';
 
 export interface Workout {
   id: number;
@@ -16,6 +21,11 @@ export interface Workout {
   volume: number;
   work_joules: number;
   is_meting?: boolean;
+  meting_moment?: MetingMoment | null;
+  set_type?: OpgeslagenSetType | null;
+  prescribed_sets?: number | null;
+  prescribed_reps?: number | null;
+  prescribed_weight?: number | null;
   created_at?: string;
 }
 

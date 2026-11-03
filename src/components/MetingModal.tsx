@@ -16,11 +16,12 @@ import { useAuth } from '../context/AuthContext';
 import { bereken1RM } from '../context/LiveWorkoutContext';
 import { berekenVolume, berekenArbeid } from '../utils/physics';
 import { supabase } from '../lib/supabase';
+import { vandaag } from '../utils/datum';
 
 const KERN_OEFENINGEN = [
-  { id: 'bench_press', naam: 'Bench Press', icoon: 'barbell-outline' },
-  { id: 'lat_pulldown', naam: 'Lat Pulldown', icoon: 'arrow-down-circle-outline' },
-  { id: 'leg_extension', naam: 'Leg Extension', icoon: 'arrow-forward-circle-outline' },
+  { id: '0025', naam: 'Bench Press', icoon: 'barbell-outline' },
+  { id: '0150', naam: 'Lat Pulldown', icoon: 'arrow-down-circle-outline' },
+  { id: '0585', naam: 'Leg Extension', icoon: 'arrow-forward-circle-outline' },
 ];
 
 interface MetingModalProps {
@@ -75,7 +76,7 @@ export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) 
       const arbeid = berekenArbeid(gekozenOefening, reps, gewicht);
       const { error } = await supabase.from('workouts').insert({
         user_id: user.id,
-        date: new Date().toISOString().split('T')[0],
+        date: vandaag(),
         exercise: gekozenOefening,
         sets: 1,
         reps,
@@ -83,6 +84,8 @@ export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) 
         volume: parseFloat(volume.toFixed(2)),
         work_joules: parseFloat(arbeid.toFixed(2)),
         is_meting: true,
+        meting_moment: week,
+        set_type: 'normaal',
       });
       if (error) throw error;
       Alert.alert(

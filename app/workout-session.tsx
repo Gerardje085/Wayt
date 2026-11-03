@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, Alert, Modal, Pressable, SafeAreaView, Image,
@@ -24,6 +24,12 @@ import PrCelebratie from '../src/components/PrCelebratie';
 import WorkoutSamenvatting, { type WorkoutSamenvattingData } from '../src/components/WorkoutSamenvatting';
 import ExerciseGuideModal from '../src/components/ExerciseGuideModal';
 import { supabase } from '../src/lib/supabase';
+import { vandaag } from '../src/utils/datum';
+import { getStatusLabel } from '../src/utils/algorithm';
+import { haalLaatsteSessies, bewaarOpgeslagenSessie } from '../src/lib/trainingsHistorie';
+import { bouwLiveOefening } from '../src/lib/sessieOpbouw';
+import { getDefaultRestTime } from '../src/lib/settingsStore';
+import type { NieuweWorkout } from '../src/types';
 
 function setTypeConfig(kleuren: any): Record<SetType, { label: string; kleur: string }> {
   return {
@@ -131,11 +137,12 @@ interface PrState {
 }
 
 function SetRij({
-  set, index, oefeningId, toonGewicht, vorige, kleuren, bestaandePR, onNieuwPR,
+  set, index, oefeningId, toonGewicht, vorige, kleuren, bestaandePR, onNieuwPR, rustTijd,
 }: {
   set: LiveSet; index: number; oefeningId: string;
   toonGewicht: boolean; vorige: { reps: number; gewicht: number } | null | undefined;
   kleuren: any; bestaandePR: number; onNieuwPR: (eenRM: number) => void;
+  rustTijd: number;
 }) {
   const { toggleSet, updateSet, setSetType, startRustTimer } = useLiveWorkout();
   const [typeModal, setTypeModal] = useState(false);
@@ -145,20 +152,34 @@ function SetRij({
   const isCompleted = set.completed;
   const cfg = setTypeConfig(kleuren);
 
+  const hint = set.doel ?? vorige ?? null;
+
   const handleCheck = () => {
+    if (isCompleted) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      toggleSet(oefeningId, set.id);
+      return;
+    }
+    const gewicht = gewichtStr.trim() !== ''
+      ? parseFloat(gewichtStr.replace(',', '.')) || 0
+      : (toonGewicht ? hint?.gewicht ?? 0 : 0);
+    const reps = repsStr.trim() !== '' ? parseInt(repsStr, 10) || 0 : hint?.reps ?? 0;
+    if (reps <= 0) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Vul je herhalingen in', 'Een set zonder herhalingen kan niet worden afgevinkt.');
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const gewicht = parseFloat(gewichtStr.replace(',', '.')) || 0;
-    const reps = parseInt(repsStr) || 0;
+    if (toonGewicht) setGewichtStr(formatGewicht(gewicht));
+    setRepsStr(String(reps));
     updateSet(oefeningId, set.id, 'gewicht', gewicht);
     updateSet(oefeningId, set.id, 'reps', reps);
     toggleSet(oefeningId, set.id);
-    if (!isCompleted) {
-      startRustTimer(90);
-      if (gewicht > 0 && reps > 0) {
-        const nieuwEenRM = bereken1RM(gewicht, reps);
-        if (nieuwEenRM > bestaandePR) {
-          onNieuwPR(nieuwEenRM);
-        }
+    startRustTimer(rustTijd);
+    if (gewicht > 0 && set.type !== 'warmup') {
+      const nieuwEenRM = bereken1RM(gewicht, reps);
+      if (nieuwEenRM > bestaandePR) {
+        onNieuwPR(nieuwEenRM);
       }
     }
   };
@@ -166,8 +187,7 @@ function SetRij({
   const pasGewichtAan = (delta: number) => {
     const huidig = parseFloat(gewichtStr.replace(',', '.')) || 0;
     const nieuw = Math.max(0, Math.round((huidig + delta) * 4) / 4);
-    const tekst = Number.isInteger(nieuw) ? String(nieuw) : nieuw.toFixed(2).replace(/\.?0+$/, '');
-    setGewichtStr(tekst);
+    setGewichtStr(formatGewicht(nieuw));
     updateSet(oefeningId, set.id, 'gewicht', nieuw);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
@@ -211,7 +231,7 @@ function SetRij({
               value={gewichtStr}
               onChangeText={setGewichtStr}
               keyboardType="decimal-pad"
-              placeholder={vorige ? String(vorige.gewicht) : '0'}
+              placeholder={hint ? formatGewicht(hint.gewicht) : '0'}
               placeholderTextColor={kleuren.tekstGedimpt}
               editable={!isCompleted}
               selectTextOnFocus
@@ -225,7 +245,7 @@ function SetRij({
           value={repsStr}
           onChangeText={setRepsStr}
           keyboardType="number-pad"
-          placeholder={vorige ? String(vorige.reps) : '0'}
+          placeholder={hint ? String(hint.reps) : '0'}
           placeholderTextColor={kleuren.tekstGedimpt}
           editable={!isCompleted}
           selectTextOnFocus
@@ -268,6 +288,10 @@ function SetRij({
       )}
     </View>
   );
+}
+
+function formatGewicht(waarde: number): string {
+  return Number.isInteger(waarde) ? String(waarde) : waarde.toFixed(2).replace(/\.?0+$/, '');
 }
 
 const sr = StyleSheet.create({
@@ -355,6 +379,20 @@ function OefeningKaart({
 
       {oefening.expanded && (
         <View style={ok.setsContainer}>
+          {oefening.voorschrift && (
+            <View style={[ok.doelStrook, { backgroundColor: kleuren.accentGedimpt, borderColor: kleuren.accent + '44' }]}>
+              <Ionicons name="analytics-outline" size={16} color={kleuren.accentLicht} />
+              <View style={{ flex: 1 }}>
+                <Text style={[ok.doelTitel, { color: kleuren.tekst }]}>
+                  Doel: {oefening.voorschrift.sets} × {oefening.voorschrift.reps} @ {formatGewicht(oefening.voorschrift.weight)} kg
+                </Text>
+                <Text style={[ok.doelSub, { color: kleuren.tekstSecundair }]}>
+                  {getStatusLabel(oefening.voorschrift.status)}
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={ok.kolomHeaders}>
             <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, width: 38, textAlign: 'center' }]}>SET</Text>
             <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, flex: 1, textAlign: 'center' }]}>VORIG</Text>
@@ -373,6 +411,7 @@ function OefeningKaart({
               kleuren={kleuren}
               bestaandePR={bestaandePRs[oefening.id] ?? 0}
               onNieuwPR={(eenRM) => onNieuwPR(oefening.id, eenRM)}
+              rustTijd={oefening.rustTijd ?? 90}
             />
           ))}
 
@@ -423,6 +462,9 @@ const ok = StyleSheet.create({
   voltooiTekst: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   infoKnop: { padding: 4, marginRight: 2 },
   setsContainer: { paddingHorizontal: 10, paddingBottom: 12 },
+  doelStrook: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 10 },
+  doelTitel: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  doelSub: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2 },
   kolomHeaders: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2, marginBottom: 6, gap: 8 },
   kolomHeader: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.8 },
   footer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
@@ -434,8 +476,10 @@ const ok = StyleSheet.create({
 export default function WorkoutSession() {
   const router = useRouter();
   const { kleuren } = useThema();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { slaOp, laden: ladenOpslaan } = useOpslaanWorkout();
+  const [toevoegenBezig, setToevoegenBezig] = useState(false);
+  const opslaanBezig = useRef(false);
   const {
     isActief, routineNaam, oefeningen, verlopenTijd,
     stopWorkout, rustTimerLoopt, rustTimerResterend,
@@ -510,37 +554,77 @@ export default function WorkoutSession() {
     setSamenvattingData(samenvatting);
   }, [berekenSamenvatting]);
 
-  const handleOpslaanEnAfsluiten = useCallback(async () => {
-    if (!user?.id) return;
-    const workoutsData = oefeningen.flatMap(o =>
+  const handleOpslaanEnAfsluiten = async () => {
+    if (!user?.id || opslaanBezig.current) return;
+    opslaanBezig.current = true;
+    try {
+      await slaWorkoutOp(user.id);
+    } finally {
+      opslaanBezig.current = false;
+    }
+  };
+
+  const slaWorkoutOp = async (userId: string) => {
+    const datum = vandaag();
+    const workoutsData: NieuweWorkout[] = oefeningen.flatMap(o =>
       o.sets
         .filter(s => s.completed)
         .map(s => {
           const volume = berekenVolume(1, s.reps, s.gewicht);
           const arbeid = berekenArbeid(o.id, s.reps, s.gewicht);
+          const voorschrift = s.type !== 'warmup' ? o.voorschrift : null;
           return {
-            user_id: user.id,
-            date: new Date().toISOString().split('T')[0],
+            user_id: userId,
+            date: datum,
             exercise: o.id,
             sets: 1,
             reps: s.reps,
             weight: s.gewicht,
             volume: parseFloat(volume.toFixed(2)),
             work_joules: parseFloat(arbeid.toFixed(2)),
+            is_meting: false,
+            set_type: s.type,
+            prescribed_sets: voorschrift?.sets ?? null,
+            prescribed_reps: voorschrift?.reps ?? null,
+            prescribed_weight: voorschrift?.weight ?? null,
           };
         })
     );
     if (workoutsData.length > 0) {
-      await slaOp(workoutsData);
+      const uitkomst = await slaOp(workoutsData);
+      if (!uitkomst.ok) {
+        setSamenvattingData(null);
+        Alert.alert(
+          'Opslaan mislukt',
+          'Je workout is niet opgeslagen en blijft open. Probeer het zo opnieuw.',
+        );
+        return;
+      }
+      await bewaarOpgeslagenSessie(userId, workoutsData);
+      if (uitkomst.offline) {
+        Alert.alert(
+          'Lokaal opgeslagen',
+          'Je workout staat veilig op je telefoon en wordt automatisch verstuurd zodra er verbinding is.',
+        );
+      }
     }
     setSamenvattingData(null);
     stopWorkout();
-    router.back();
-  }, [oefeningen, user?.id, slaOp, stopWorkout, router]);
+  };
 
-  const handleOefeningToevoegen = (oefeningId: string) => {
-    addOefening(oefeningId);
+  const handleOefeningToevoegen = async (oefeningId: string) => {
     setSelectorZicht(false);
+    if (!user?.id || toevoegenBezig) return;
+    setToevoegenBezig(true);
+    try {
+      const [historie, standaardRust] = await Promise.all([
+        haalLaatsteSessies(user.id, [oefeningId]),
+        getDefaultRestTime(),
+      ]);
+      addOefening(bouwLiveOefening(oefeningId, profile?.group_type, historie.sessies, standaardRust));
+    } finally {
+      setToevoegenBezig(false);
+    }
   };
 
   if (!isActief) return null;

@@ -12,6 +12,7 @@ import { useStatistieken } from '../../src/hooks/useStatistieken';
 import type { DagData, SpiergroepVerdeling } from '../../src/hooks/useStatistieken';
 import MetingModal from '../../src/components/MetingModal';
 import HerstelHeatmap from '../../src/components/HerstelHeatmap';
+import { lokaleDatum } from '../../src/utils/datum';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -29,7 +30,7 @@ function ConsistencyCalendar({ heatmap, kleuren }: { heatmap: DagData[]; kleuren
     for (let i = 104; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const datum = d.toISOString().split('T')[0];
+      const datum = lokaleDatum(d);
       cells.push({ datum, count: dagMap.get(datum) || 0 });
     }
     return cells;
@@ -155,7 +156,7 @@ export default function DashboardScreen() {
             <TouchableOpacity
               style={[s.instellingenKnop, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}
               onPress={() => router.push('/(tabs)/admin')}
-              accessibilityLabel="Onderzoeksdata openen"
+              accessibilityLabel="Instellingen openen"
             >
               <Ionicons name="settings-outline" size={20} color={kleuren.tekstGedimpt} />
             </TouchableOpacity>
@@ -172,7 +173,7 @@ export default function DashboardScreen() {
           {[
             { label: 'Workouts', waarde: String(weekStat?.workouts ?? 0), icoon: 'barbell-outline' },
             { label: 'Volume', waarde: `${((weekStat?.totaalVolume ?? 0) / 1000).toFixed(1)}t`, icoon: 'trending-up-outline' },
-            { label: 'Sets', waarde: String(weekStat?.minutenGeraamd ?? 0), icoon: 'checkmark-circle-outline' },
+            { label: 'Sets', waarde: String(weekStat?.sets ?? 0), icoon: 'checkmark-circle-outline' },
           ].map((stat) => (
             <View key={stat.label} style={[s.statKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
               <Ionicons name={stat.icoon as any} size={22} color={kleuren.accent} style={{ marginBottom: 8 }} />

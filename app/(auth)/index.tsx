@@ -11,14 +11,6 @@ import PrimaryButton from '../../src/components/ui/PrimaryButton';
 
 type Modus = 'inloggen' | 'registreren';
 
-async function bepaalTestgroep(): Promise<'app' | 'gevoel' | null> {
-  const { count, error } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true });
-  if (error) return null;
-  return (count ?? 0) % 2 === 0 ? 'app' : 'gevoel';
-}
-
 export default function AuthScreen() {
   const { kleuren } = useThema();
   const [modus, setModus] = useState<Modus>('inloggen');
@@ -46,17 +38,9 @@ export default function AuthScreen() {
     if (wachtwoord.length < 6) { Alert.alert('Wachtwoord te kort', 'Gebruik minimaal 6 tekens.'); return; }
     setLaden(true);
 
-    const groep = await bepaalTestgroep();
-    if (!groep) {
-      setLaden(false);
-      Alert.alert('Registratie mislukt', 'Kon geen testgroep toewijzen. Probeer het opnieuw.');
-      return;
-    }
-
     const { error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password: wachtwoord,
-      options: { data: { group_type: groep } },
     });
     setLaden(false);
     if (error) {
@@ -64,8 +48,7 @@ export default function AuthScreen() {
       Alert.alert('Registratie mislukt', error.message);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const groepNaam = groep === 'app' ? 'Algoritme-groep' : 'Gevoel-groep';
-      Alert.alert('Account aangemaakt', `Je bent ingedeeld in de ${groepNaam}. Veel succes!`);
+      Alert.alert('Account aangemaakt', 'Je bent automatisch ingedeeld in een onderzoeksgroep. Na het inloggen zie je welke.');
     }
   }
 

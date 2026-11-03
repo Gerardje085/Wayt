@@ -132,8 +132,13 @@ export function useAlleWorkouts(userId: string | undefined): AlleWorkoutsResult 
 
 // ─── Opslaan (online + offline) ───────────────────────────────────────────────
 
+export interface OpslaanUitkomst {
+  ok:      boolean;
+  offline: boolean;
+}
+
 export interface OpslaanResult {
-  slaOp:         (data: NieuweWorkout | NieuweWorkout[]) => Promise<void>;
+  slaOp:         (data: NieuweWorkout | NieuweWorkout[]) => Promise<OpslaanUitkomst>;
   laden:         boolean;
   fout:          string | null;
   succes:        boolean;
@@ -192,7 +197,7 @@ export function useOpslaanWorkout(): OpslaanResult {
     syncOfflineWachtrij();
   }, [isOnline, hertelOffline]);
 
-  const slaOp = useCallback(async (werkoutData: NieuweWorkout | NieuweWorkout[]) => {
+  const slaOp = useCallback(async (werkoutData: NieuweWorkout | NieuweWorkout[]): Promise<OpslaanUitkomst> => {
     setLaden(true);
     setFout(null);
     setSucces(false);
@@ -200,8 +205,7 @@ export function useOpslaanWorkout(): OpslaanResult {
 
     const dataArray = Array.isArray(werkoutData) ? werkoutData : [werkoutData];
 
-    if (!isOnline) {
-      // Offline: opslaan in lokale wachtrij
+    const slaLokaalOp = async (): Promise<OpslaanUitkomst> => {
       try {
         for (const w of dataArray) {
           await slaOfflineOp(w);
@@ -209,21 +213,25 @@ export function useOpslaanWorkout(): OpslaanResult {
         setWasOffline(true);
         setSucces(true);
         hertelOffline();
+        return { ok: true, offline: true };
       } catch (err) {
         setFout((err as Error).message);
-      } finally {
-        setLaden(false);
+        return { ok: false, offline: true };
       }
-      return;
-    }
+    };
 
-    // Online: direct naar Supabase
     try {
+      if (!isOnline) return await slaLokaalOp();
+
       const { error } = await supabase.from('workouts').insert(dataArray);
-      if (error) throw error;
+      if (error) {
+        console.warn('[Opslaan] Server weigerde, lokaal bewaard:', error.message);
+        return await slaLokaalOp();
+      }
       setSucces(true);
-    } catch (err) {
-      setFout((err as Error).message);
+      return { ok: true, offline: false };
+    } catch {
+      return await slaLokaalOp();
     } finally {
       setLaden(false);
     }

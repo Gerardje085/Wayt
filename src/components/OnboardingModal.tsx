@@ -63,7 +63,7 @@ export default function OnboardingModal() {
         kleur: kleuren.accent,
         titel: 'Welkom bij de Algoritme-groep!',
         tekst:
-          'Jij traint met behulp van een progressief overbelastingsalgoritme. Vor elke set krijg je een concreet advies voor gewicht en herhalingen op basis van je vorige sessie.\n\nHet is belangrijk dat je dit advies zo nauwkeurig mogelijk opvolgt - zo leveren jouw trainingsdata de meest betrouwbare onderzoeksresultaten op.',
+          'Jij traint met behulp van een progressief overbelastingsalgoritme. Voor elke oefening krijg je een concreet advies voor gewicht en herhalingen op basis van je vorige sessie.\n\nHet is belangrijk dat je dit advies zo nauwkeurig mogelijk opvolgt - zo leveren jouw trainingsdata de meest betrouwbare onderzoeksresultaten op.',
         badge: 'Groep A - Algoritme',
       }
     : {

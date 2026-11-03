@@ -13,12 +13,67 @@ import ErrorBanner from '../../src/components/ErrorBanner';
 import StatCard from '../../src/components/ui/StatCard';
 import Badge from '../../src/components/ui/Badge';
 import { getDefaultRestTime, setDefaultRestTime, STANDAARD_RUST_TIJD } from '../../src/lib/settingsStore';
+import { canoniekeId } from '../../src/lib/trainingsHistorie';
+import { findExercise } from '../../src/data/exercises';
+import { vandaag } from '../../src/utils/datum';
+import type { Workout } from '../../src/types';
 
 interface AbVergelijking {
   groepA: number;
   groepB: number;
   aantalA: number;
   aantalB: number;
+  compleetA: number;
+  compleetB: number;
+  opvolging: number | null;
+}
+
+type ExportRij = Workout & { group_type?: string };
+
+const KERN_OEFENINGEN = ['0025', '0150', '0585'];
+
+function gemiddelde(waarden: number[]): number {
+  return waarden.length > 0 ? waarden.reduce((a, b) => a + b, 0) / waarden.length : 0;
+}
+
+function groeiPerDeelnemer(metingen: Workout[]): Map<string, number> {
+  const perDeelnemer = new Map<string, Map<string, Workout[]>>();
+  for (const m of metingen) {
+    const oefening = canoniekeId(m.exercise);
+    if (!KERN_OEFENINGEN.includes(oefening)) continue;
+    const perOefening = perDeelnemer.get(m.user_id) ?? new Map<string, Workout[]>();
+    perOefening.set(oefening, [...(perOefening.get(oefening) ?? []), m]);
+    perDeelnemer.set(m.user_id, perOefening);
+  }
+
+  const resultaat = new Map<string, number>();
+  for (const [userId, perOefening] of perDeelnemer) {
+    const groeien: number[] = [];
+    for (const rijen of perOefening.values()) {
+      const eenRM = (r: Workout) => bereken1RM(Number(r.weight), Number(r.reps));
+      let begin = rijen.filter(r => r.meting_moment === 'week0');
+      let eind = rijen.filter(r => r.meting_moment === 'week6');
+      if (begin.length === 0 || eind.length === 0) {
+        const datums = rijen.map(r => r.date).sort();
+        const eerste = datums[0];
+        const laatste = datums[datums.length - 1];
+        if (eerste === laatste) continue;
+        if (begin.length === 0) begin = rijen.filter(r => r.date === eerste);
+        if (eind.length === 0) eind = rijen.filter(r => r.date === laatste);
+      }
+      const beginMax = Math.max(...begin.map(eenRM));
+      const eindMax = Math.max(...eind.map(eenRM));
+      if (beginMax > 0) groeien.push(((eindMax - beginMax) / beginMax) * 100);
+    }
+    if (groeien.length > 0) resultaat.set(userId, gemiddelde(groeien));
+  }
+  return resultaat;
+}
+
+function csvVeld(waarde: unknown): string {
+  if (waarde === null || waarde === undefined) return '';
+  const tekst = String(waarde);
+  return /[",\n]/.test(tekst) ? `"${tekst.replace(/"/g, '""')}"` : tekst;
 }
 
 const RUST_PRESETS = [
@@ -32,8 +87,10 @@ export default function AdminScreen() {
   const { user, profile, uitloggen } = useAuth();
   const { kleuren, voorkeur, setVoorkeur } = useThema();
   const { haalAllesOp, workouts, laden, fout } = useAlleWorkouts(user?.id);
+  const isOnderzoeker = profile?.is_onderzoeker === true;
   const [abVergelijking, setAbVergelijking] = useState<AbVergelijking | null>(null);
   const [abLaden, setAbLaden] = useState(false);
+  const [onderzoeksRijen, setOnderzoeksRijen] = useState<ExportRij[]>([]);
 
   // Standaard rusttijd instelling
   const [standaardRust, setStandaardRust] = useState<number>(STANDAARD_RUST_TIJD);
@@ -45,9 +102,12 @@ export default function AdminScreen() {
   }, [haalAllesOp]);
 
   useEffect(() => {
-    laadAbVergelijking();
     getDefaultRestTime().then(setStandaardRust);
   }, []);
+
+  useEffect(() => {
+    if (isOnderzoeker) laadAbVergelijking();
+  }, [isOnderzoeker]);
 
   const handleKiesRust = async (sec: number) => {
     setStandaardRust(sec);
@@ -69,102 +129,75 @@ export default function AdminScreen() {
   const laadAbVergelijking = async () => {
     setAbLaden(true);
     try {
-      const { data: profielen } = await supabase
+      const { data: profielen, error: profielFout } = await supabase
         .from('profiles')
-        .select('id, group_type');
-      if (!profielen) return;
+        .select('id, group_type, is_onderzoeker');
+      if (profielFout || !profielen) throw profielFout ?? new Error('Geen profielen');
 
-      const groepAIds = profielen.filter(p => p.group_type === 'app').map(p => p.id);
-      const groepBIds = profielen.filter(p => p.group_type === 'gevoel').map(p => p.id);
+      const { data: rijen, error: rijFout } = await supabase
+        .from('workouts')
+        .select('*')
+        .order('date', { ascending: true })
+        .limit(50000);
+      if (rijFout || !rijen) throw rijFout ?? new Error('Geen workouts');
 
-      const berekenGemiddeld1RM = async (userIds: string[]): Promise<number> => {
-        if (userIds.length === 0) return 0;
-        const { data: wdata } = await supabase
-          .from('workouts')
-          .select('user_id, weight, reps, date')
-          .in('user_id', userIds)
-          .in('exercise', ['bench_press', 'lat_pulldown', 'leg_extension', '0025', '0150', '0585']);
-        if (!wdata || wdata.length === 0) return 0;
+      const deelnemers = profielen.filter(p => !p.is_onderzoeker);
+      const groepPerId = new Map(profielen.map(p => [p.id, p.group_type as string]));
+      const groepAIds = deelnemers.filter(p => p.group_type === 'app').map(p => p.id);
+      const groepBIds = deelnemers.filter(p => p.group_type === 'gevoel').map(p => p.id);
 
-        const vroegsteDatumPerUser = new Map<string, string>();
-        const laastste1RMPerUser = new Map<string, number>();
+      const alleRijen = rijen as Workout[];
+      setOnderzoeksRijen(alleRijen.map(r => ({ ...r, group_type: groepPerId.get(r.user_id) })));
 
-        for (const row of wdata) {
-          if (!vroegsteDatumPerUser.has(row.user_id) || row.date < vroegsteDatumPerUser.get(row.user_id)!) {
-            vroegsteDatumPerUser.set(row.user_id, row.date);
-          }
-        }
+      const groei = groeiPerDeelnemer(alleRijen.filter(r => r.is_meting));
+      const groeiA = groepAIds.filter(id => groei.has(id)).map(id => groei.get(id)!);
+      const groeiB = groepBIds.filter(id => groei.has(id)).map(id => groei.get(id)!);
 
-        const baseline1RMPerUser = new Map<string, number>();
-        for (const row of wdata) {
-          if (row.date === vroegsteDatumPerUser.get(row.user_id)) {
-            const eenRM = bereken1RM(Number(row.weight), Number(row.reps));
-            baseline1RMPerUser.set(row.user_id, Math.max(baseline1RMPerUser.get(row.user_id) || 0, eenRM));
-          }
-          const eenRM = bereken1RM(Number(row.weight), Number(row.reps));
-          laastste1RMPerUser.set(row.user_id, Math.max(laastste1RMPerUser.get(row.user_id) || 0, eenRM));
-        }
-
-        let somGroei = 0;
-        let geteldeUsers = 0;
-        for (const uid of userIds) {
-          const base = baseline1RMPerUser.get(uid) || 0;
-          const laatst = laastste1RMPerUser.get(uid) || 0;
-          if (base > 0) {
-            somGroei += ((laatst - base) / base) * 100;
-            geteldeUsers++;
-          }
-        }
-        return geteldeUsers > 0 ? somGroei / geteldeUsers : 0;
-      };
-
-      const [groepAGroei, groepBGroei] = await Promise.all([
-        berekenGemiddeld1RM(groepAIds),
-        berekenGemiddeld1RM(groepBIds),
-      ]);
+      const voorgeschreven = alleRijen.filter(r =>
+        groepAIds.includes(r.user_id) && !r.is_meting && r.set_type !== 'warmup' && Number(r.prescribed_weight) > 0,
+      );
+      const opgevolgd = voorgeschreven.filter(r =>
+        Math.abs(Number(r.weight) - Number(r.prescribed_weight)) < 0.01 &&
+        Number(r.reps) >= Number(r.prescribed_reps),
+      );
 
       setAbVergelijking({
-        groepA: groepAGroei,
-        groepB: groepBGroei,
+        groepA: gemiddelde(groeiA),
+        groepB: gemiddelde(groeiB),
         aantalA: groepAIds.length,
         aantalB: groepBIds.length,
+        compleetA: groeiA.length,
+        compleetB: groeiB.length,
+        opvolging: voorgeschreven.length > 0 ? Math.round((opgevolgd.length / voorgeschreven.length) * 100) : null,
       });
     } catch (e) {
       console.warn('Fout bij A/B vergelijking ophalen:', e);
+      setAbVergelijking(null);
     } finally {
       setAbLaden(false);
     }
   };
 
-  const aantalSessies = workouts.length;
   const totaalVolume = workouts.reduce((s, w) => s + (parseFloat(String(w.volume)) || 0), 0);
   const totaalArbeid = workouts.reduce((s, w) => s + (parseFloat(String(w.work_joules)) || 0), 0);
-  const oefeningen = Array.from(new Set(workouts.map((w) => w.exercise)));
-
-  const adherenceGemiddeld = (): number => {
-    if (workouts.length === 0) return 0;
-    const scores = workouts.map(w => {
-      const v = Number((w as any).prescribed_weight);
-      const g = Number(w.weight);
-      if (!v || v <= 0) return 100;
-      return Math.max(0, 100 - (Math.abs(g - v) / v) * 100);
-    });
-    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  };
+  const oefeningen = Array.from(new Set(workouts.map((w) => findExercise(w.exercise)?.naam ?? w.exercise)));
 
   const handleExportCSV = async () => {
-    if (workouts.length === 0) {
+    const bron: ExportRij[] = isOnderzoeker ? onderzoeksRijen : workouts;
+    if (bron.length === 0) {
       Alert.alert('Geen data', 'Er zijn nog geen workouts om te exporteren.');
       return;
     }
-    const headers = ['id', 'user_id', 'date', 'exercise', 'sets', 'reps', 'weight_kg', 'volume_kg', 'work_joules', 'prescribed_sets', 'prescribed_reps', 'prescribed_weight_kg', 'is_meting'];
-    const rows = workouts.map((w: any) => [
-      w.id, w.user_id, w.date, `"${w.exercise}"`, w.sets, w.reps, w.weight, w.volume, w.work_joules || 0,
-      w.prescribed_sets ?? '', w.prescribed_reps ?? '', w.prescribed_weight ?? '', w.is_meting ? 'true' : 'false',
-    ]);
+    const headers = ['id', 'user_id', 'group_type', 'date', 'exercise', 'set_type', 'sets', 'reps', 'weight_kg', 'volume_kg', 'work_joules', 'prescribed_sets', 'prescribed_reps', 'prescribed_weight_kg', 'is_meting', 'meting_moment'];
+    const rows = bron.map(w => [
+      w.id, w.user_id, w.group_type ?? profile?.group_type ?? '', w.date, canoniekeId(w.exercise), w.set_type ?? 'normaal',
+      w.sets, w.reps, w.weight, w.volume, w.work_joules || 0,
+      w.prescribed_sets, w.prescribed_reps, w.prescribed_weight,
+      w.is_meting ? 'true' : 'false', w.meting_moment,
+    ].map(csvVeld));
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     try {
-      await Share.share({ message: csvContent, title: `wayt_export_${new Date().toISOString().split('T')[0]}.csv` });
+      await Share.share({ message: csvContent, title: `wayt_export_${vandaag()}.csv` });
     } catch {
       Alert.alert('Export mislukt', 'Kon het bestand niet delen.');
     }
@@ -180,10 +213,12 @@ export default function AdminScreen() {
         style={stijlen.scroll}
         contentContainerStyle={stijlen.inhoud}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={laden || abLaden} onRefresh={() => { haalAllesOp(); laadAbVergelijking(); }} tintColor={kleuren.accent} />}
+        refreshControl={<RefreshControl refreshing={laden || abLaden} onRefresh={() => { haalAllesOp(); if (isOnderzoeker) laadAbVergelijking(); }} tintColor={kleuren.accent} />}
       >
-        <Text style={[stijlen.titel, { color: kleuren.tekst }]}>Instellingen & Data</Text>
-        <Text style={[stijlen.subtitel, { color: kleuren.tekstGedimpt }]}>Voorkeuren, standaard rusttijd en PWS-onderzoeksresultaten</Text>
+        <Text style={[stijlen.titel, { color: kleuren.tekst }]}>{isOnderzoeker ? 'Instellingen & Onderzoek' : 'Instellingen'}</Text>
+        <Text style={[stijlen.subtitel, { color: kleuren.tekstGedimpt }]}>
+          {isOnderzoeker ? 'Voorkeuren en PWS-onderzoeksresultaten' : 'Voorkeuren, rusttijd en je account'}
+        </Text>
 
         {/* ─── Instellingen Sectie ────────────────────────────────────── */}
         <Text style={[stijlen.sectie, { color: kleuren.accent }]}>STANDAARD RUSTTIJD TUSSEN SETS</Text>
@@ -287,61 +322,53 @@ export default function AdminScreen() {
           </View>
         )}
 
-        {/* ─── Therapietrouw (Groep A) ─────────────────────────────────── */}
-        {profile?.group_type === 'app' && (
+        {isOnderzoeker && (
           <>
-            <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Therapietrouw (Groep A)</Text>
-            <View style={[stijlen.adherenceKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-              <View style={stijlen.adherenceRij}>
-                <Text style={[stijlen.adherenceLabel, { color: kleuren.tekstGedimpt }]}>Gemiddelde opvolggraad</Text>
-                <Text style={[stijlen.adherenceWaarde, { color: kleuren.succes }]}>{adherenceGemiddeld()}%</Text>
+            {/* ─── A/B Vergelijking ────────────────────────────────────── */}
+            <Text style={[stijlen.sectie, { color: kleuren.accent }]}>A/B Vergelijking — Gemiddelde 1RM Groei</Text>
+            {abLaden ? (
+              <ActivityIndicator color={kleuren.accent} style={{ marginBottom: 20 }} />
+            ) : abVergelijking ? (
+              <View style={[stijlen.abKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
+                {([
+                  { label: 'Groep A (Algoritme)', waarde: abVergelijking.groepA, aantalPersonen: abVergelijking.aantalA, compleet: abVergelijking.compleetA, kleur: kleuren.accent },
+                  { label: 'Groep B (Gevoel)', waarde: abVergelijking.groepB, aantalPersonen: abVergelijking.aantalB, compleet: abVergelijking.compleetB, kleur: '#F9A8D4' },
+                ]).map(groep => (
+                  <View key={groep.label} style={stijlen.abGroepRij}>
+                    <View style={stijlen.abGroepInfo}>
+                      <Text style={[stijlen.abGroepLabel, { color: kleuren.tekst }]}>{groep.label}</Text>
+                      <Text style={[stijlen.abGroepAantal, { color: kleuren.tekstGedimpt }]}>
+                        {groep.compleet}/{groep.aantalPersonen} met begin- en eindmeting
+                      </Text>
+                    </View>
+                    <View style={[stijlen.abBalkContainer, { backgroundColor: kleuren.achtergrond }]}>
+                      <View style={[stijlen.abBalk, {
+                        width: `${(Math.abs(groep.waarde) / maxAb) * 100}%`,
+                        backgroundColor: groep.kleur,
+                      }]} />
+                    </View>
+                    <Text style={[stijlen.abWaarde, { color: groep.kleur }]}>
+                      {groep.waarde >= 0 ? '+' : ''}{groep.waarde.toFixed(1)}%
+                    </Text>
+                  </View>
+                ))}
+                <Text style={[stijlen.abNota, { color: kleuren.tekstGedimpt }]}>
+                  Procentuele 1RM-toename week 0 → week 6, gemiddeld over Bench Press, Lat Pulldown en Leg Extension (Epley-formule)
+                </Text>
+                {abVergelijking.opvolging !== null && (
+                  <Text style={[stijlen.abNota, { color: kleuren.tekstGedimpt }]}>
+                    Opvolging advies Groep A: {abVergelijking.opvolging}% van de sets op voorgeschreven gewicht én reps gehaald
+                  </Text>
+                )}
               </View>
-              <View style={[stijlen.adherenceBalk, { backgroundColor: kleuren.kaartRand }]}>
-                <View style={[stijlen.adherenceVulling, { width: `${adherenceGemiddeld()}%`, backgroundColor: kleuren.succes }]} />
-              </View>
-              <Text style={[stijlen.adherenceNota, { color: kleuren.tekstGedimpt }]}>
-                Gebaseerd op jouw {aantalSessies} gelogde sessies.
-              </Text>
-            </View>
-          </>
-        )}
-
-        {/* ─── A/B Vergelijking ────────────────────────────────────── */}
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>A/B Vergelijking — Gemiddelde 1RM Groei</Text>
-        {abLaden ? (
-          <ActivityIndicator color={kleuren.accent} style={{ marginBottom: 20 }} />
-        ) : abVergelijking ? (
-          <View style={[stijlen.abKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-            {([
-              { label: 'Groep A (Algoritme)', waarde: abVergelijking.groepA, aantalPersonen: abVergelijking.aantalA, kleur: kleuren.accent },
-              { label: 'Groep B (Gevoel)', waarde: abVergelijking.groepB, aantalPersonen: abVergelijking.aantalB, kleur: '#F9A8D4' },
-            ]).map(groep => (
-              <View key={groep.label} style={stijlen.abGroepRij}>
-                <View style={stijlen.abGroepInfo}>
-                  <Text style={[stijlen.abGroepLabel, { color: kleuren.tekst }]}>{groep.label}</Text>
-                  <Text style={[stijlen.abGroepAantal, { color: kleuren.tekstGedimpt }]}>{groep.aantalPersonen} deeln.</Text>
-                </View>
-                <View style={[stijlen.abBalkContainer, { backgroundColor: kleuren.achtergrond }]}>
-                  <View style={[stijlen.abBalk, {
-                    width: `${(Math.abs(groep.waarde) / maxAb) * 100}%`,
-                    backgroundColor: groep.kleur,
-                  }]} />
-                </View>
-                <Text style={[stijlen.abWaarde, { color: groep.kleur }]}>
-                  {groep.waarde >= 0 ? '+' : ''}{groep.waarde.toFixed(1)}%
+            ) : (
+              <View style={[stijlen.geenData, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
+                <Text style={{ color: kleuren.tekstGedimpt, fontFamily: 'Inter_400Regular', fontSize: 13 }}>
+                  Nog onvoldoende data voor A/B vergelijking.
                 </Text>
               </View>
-            ))}
-            <Text style={[stijlen.abNota, { color: kleuren.tekstGedimpt }]}>
-              Procentuele 1RM-toename t.o.v. nulmeting (Epley-formule)
-            </Text>
-          </View>
-        ) : (
-          <View style={[stijlen.geenData, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-            <Text style={{ color: kleuren.tekstGedimpt, fontFamily: 'Inter_400Regular', fontSize: 13 }}>
-              Nog onvoldoende data voor A/B vergelijking.
-            </Text>
-          </View>
+            )}
+          </>
         )}
 
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand }]} />
@@ -349,7 +376,7 @@ export default function AdminScreen() {
         {/* ─── Totalen ──────────────────────────────────────────────── */}
         <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Totalen</Text>
         <View style={stijlen.statRij}>
-          <StatCard waarde={String(aantalSessies)} label="Sessies" />
+          <StatCard waarde={String(new Set(workouts.map(w => w.date)).size)} label="Trainingsdagen" />
           <StatCard waarde={totaalVolume.toFixed(0)} label="Vol. (kg)" />
           <StatCard waarde={totaalArbeid.toFixed(0)} label="Arbeid (J)" />
         </View>
@@ -369,13 +396,18 @@ export default function AdminScreen() {
 
         {/* ─── Exporteren & Uitloggen ───────────────────────────────── */}
         <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Exporteren & Account</Text>
+        {isOnderzoeker && (
+          <Text style={[stijlen.kaartUitleg, { color: kleuren.tekstGedimpt }]}>
+            Export bevat alle deelnemers ({onderzoeksRijen.length} rijen), inclusief testgroep.
+          </Text>
+        )}
         <TouchableOpacity
           style={[stijlen.exportKnop, { backgroundColor: kleuren.succes }]}
           onPress={handleExportCSV}
           accessibilityLabel="Data exporteren als CSV"
         >
           <Ionicons name="download-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
-          <Text style={stijlen.exportTekst}>Exporteer als CSV</Text>
+          <Text style={stijlen.exportTekst}>{isOnderzoeker ? 'Exporteer onderzoeksdata (CSV)' : 'Exporteer mijn data (CSV)'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
