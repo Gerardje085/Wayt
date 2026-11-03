@@ -124,7 +124,7 @@ function AppInhoud() {
   const { kleuren } = useThema();
   return (
     <>
-      <StatusBar style={kleuren.isDark ? 'light' : 'dark'} backgroundColor={kleuren.achtergrond} />
+      <StatusBar style={kleuren.isDark ? 'light' : 'dark'} />
       <NavBewaker />
       <Stack screenOptions={{ headerShown: false }} />
       <ZwevendeTimerPil />

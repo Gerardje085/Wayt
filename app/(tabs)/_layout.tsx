@@ -5,9 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useThema } from '../../src/context/ThemeContext';
 import { useLiveWorkout } from '../../src/context/LiveWorkoutContext';
 
-function TabIcoon({ naam, focused, color, label }: {
-  naam: string; focused: boolean; color: string; label: string;
+function TabIcoon({ naam, focused, label }: {
+  naam: string; focused: boolean; label: string;
 }) {
+  const { kleuren } = useThema();
+  const color = focused ? kleuren.accentTekst : kleuren.tekstGedimpt;
   return (
     <View style={stijlen.tabItem}>
       <Ionicons name={naam as any} size={22} color={color} />
@@ -40,17 +42,17 @@ export default function TabLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          tabBarIcon: ({ focused, color }) => (
-            <TabIcoon naam={focused ? 'home' : 'home-outline'} focused={focused} color={color} label="Home" />
+          tabBarIcon: ({ focused }) => (
+            <TabIcoon naam={focused ? 'home' : 'home-outline'} focused={focused} label="Home" />
           ),
         }}
       />
       <Tabs.Screen
         name="workout"
         options={{
-          tabBarIcon: ({ focused, color }) => (
+          tabBarIcon: ({ focused }) => (
             <View>
-              <TabIcoon naam={focused ? 'barbell' : 'barbell-outline'} focused={focused} color={color} label="Trainen" />
+              <TabIcoon naam={focused ? 'barbell' : 'barbell-outline'} focused={focused} label="Trainen" />
               {isActief && (
                 <View style={[stijlen.actieveBadge, { backgroundColor: kleuren.succes }]} />
               )}
@@ -61,16 +63,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="progress"
         options={{
-          tabBarIcon: ({ focused, color }) => (
-            <TabIcoon naam={focused ? 'stats-chart' : 'stats-chart-outline'} focused={focused} color={color} label="Voortgang" />
+          tabBarIcon: ({ focused }) => (
+            <TabIcoon naam={focused ? 'stats-chart' : 'stats-chart-outline'} focused={focused} label="Voortgang" />
           ),
         }}
       />
       <Tabs.Screen
         name="profiel"
         options={{
-          tabBarIcon: ({ focused, color }) => (
-            <TabIcoon naam={focused ? 'person' : 'person-outline'} focused={focused} color={color} label="Profiel" />
+          tabBarIcon: ({ focused }) => (
+            <TabIcoon naam={focused ? 'person' : 'person-outline'} focused={focused} label="Profiel" />
           ),
         }}
       />
