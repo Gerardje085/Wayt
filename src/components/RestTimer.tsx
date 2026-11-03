@@ -216,7 +216,7 @@ export default function RustTimer({ zichtbaar, onSluiten }: RustTimerProps) {
                 }}
                 accessibilityLabel={`Rusttijd ${opt.label}`}
               >
-                <Text style={[stijlen.duurTekst, { color: startTijd === opt.seconden ? kleuren.accent : kleuren.tekstGedimpt }]}>
+                <Text style={[stijlen.duurTekst, { color: startTijd === opt.seconden ? kleuren.accentTekst : kleuren.tekstGedimpt }]}>
                   {opt.label}
                 </Text>
               </TouchableOpacity>

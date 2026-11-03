@@ -81,7 +81,7 @@ export default function TemplatesModal({ zichtbaar, onSluiten, onOpgeslagen }: T
                   return (
                     <View key={i} style={[stijlen.oefeningRij, { borderBottomColor: kleuren.kaartRand }]}>
                       <View style={[stijlen.nummerBadge, { backgroundColor: kleuren.accentGedimpt }]}>
-                        <Text style={[stijlen.nummerTekst, { color: kleuren.accent }]}>{i + 1}</Text>
+                        <Text style={[stijlen.nummerTekst, { color: kleuren.accentTekst }]}>{i + 1}</Text>
                       </View>
                       <Text style={[stijlen.oefeningNaam, { color: kleuren.tekst }]} numberOfLines={1}>
                         {info?.naam ?? oe.id}
@@ -99,7 +99,7 @@ export default function TemplatesModal({ zichtbaar, onSluiten, onOpgeslagen }: T
                   onPress={() => handleOpslaan(item)}
                 >
                   <Ionicons name="download-outline" size={18} color={kleuren.accent} style={{ marginRight: 6 }} />
-                  <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold' }}>Opslaan in Mijn Routines</Text>
+                  <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_600SemiBold' }}>Opslaan in Mijn Routines</Text>
                 </TouchableOpacity>
               </View>
             </View>

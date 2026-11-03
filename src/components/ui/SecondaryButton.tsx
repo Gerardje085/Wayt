@@ -24,7 +24,7 @@ export default function SecondaryButton({ titel, onPress, icoon, uitgeschakeld }
       ]}
     >
       {icoon && <Ionicons name={icoon} size={18} color={kleuren.accent} style={{ marginRight: 8 }} />}
-      <Text style={[stijlen.tekst, { color: kleuren.accent }]}>{titel}</Text>
+      <Text style={[stijlen.tekst, { color: kleuren.accentTekst }]}>{titel}</Text>
     </TouchableOpacity>
   );
 }

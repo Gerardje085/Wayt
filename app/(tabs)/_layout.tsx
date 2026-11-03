@@ -33,7 +33,7 @@ export default function TabLayout() {
           paddingBottom: Platform.OS === 'ios' ? 24 : 8,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: kleuren.accent,
+        tabBarActiveTintColor: kleuren.accentTekst,
         tabBarInactiveTintColor: kleuren.tekstGedimpt,
       }}
     >
@@ -81,7 +81,7 @@ export default function TabLayout() {
 
 const stijlen = StyleSheet.create({
   tabItem: { alignItems: 'center', gap: 2, minWidth: 60 },
-  tabLabel: { fontSize: 10, fontFamily: 'Inter_600SemiBold', letterSpacing: -0.2 },
+  tabLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: -0.2 },
   actieveBadge: {
     position: 'absolute', top: -2, right: -6,
     width: 8, height: 8, borderRadius: 4,

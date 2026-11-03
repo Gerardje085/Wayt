@@ -160,7 +160,7 @@ export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) 
                 onPress={() => setGekozenOefening(oef.id)}
               >
                 <Ionicons name={oef.icoon as any} size={18} color={gekozenOefening === oef.id ? kleuren.accent : kleuren.tekstGedimpt} />
-                <Text style={[s.oefeningTekst, { color: gekozenOefening === oef.id ? kleuren.accent : kleuren.tekstSecundair }]}>
+                <Text style={[s.oefeningTekst, { color: gekozenOefening === oef.id ? kleuren.accentTekst : kleuren.tekstSecundair }]}>
                   {oef.naam}
                 </Text>
               </TouchableOpacity>
@@ -241,7 +241,7 @@ const s = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
   },
   sectionLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 1.5,
     marginBottom: 10,

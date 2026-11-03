@@ -129,8 +129,8 @@ export default function WorkoutSamenvatting({ zichtbaar, data, onOpslaan, onAnnu
               style={[s.opslaanKnop, { backgroundColor: kleuren.succes }]}
               onPress={() => sluitModal('opslaan')}
             >
-              <Ionicons name="checkmark" size={18} color="#FFF" />
-              <Text style={s.opslaanTekst}>Opslaan & Afsluiten</Text>
+              <Ionicons name="checkmark" size={18} color={kleuren.opSucces} />
+              <Text style={[s.opslaanTekst, { color: kleuren.opSucces }]}>Opslaan & Afsluiten</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -199,7 +199,7 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
   sectionLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 1.5,
     marginBottom: 10,

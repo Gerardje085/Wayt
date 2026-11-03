@@ -57,11 +57,11 @@ function ConsistencyCalendar({ heatmap, kleuren }: { heatmap: DagData[]; kleuren
         ))}
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 8, gap: 4 }}>
-        <Text style={{ color: kleuren.tekstGedimpt, fontSize: 10, fontFamily: 'Inter_400Regular' }}>Minder</Text>
+        <Text style={{ color: kleuren.tekstGedimpt, fontSize: 11, fontFamily: 'Inter_400Regular' }}>Minder</Text>
         {[0, 1, 2, 3].map(n => (
           <View key={n} style={{ width: CEL, height: CEL, borderRadius: 3, backgroundColor: getKleur(n) }} />
         ))}
-        <Text style={{ color: kleuren.tekstGedimpt, fontSize: 10, fontFamily: 'Inter_400Regular' }}>Meer</Text>
+        <Text style={{ color: kleuren.tekstGedimpt, fontSize: 11, fontFamily: 'Inter_400Regular' }}>Meer</Text>
       </View>
     </View>
   );
@@ -220,7 +220,7 @@ export default function DashboardScreen() {
                 <Text style={[s.prDatum, { color: kleuren.tekstGedimpt }]}>{pr.datum}</Text>
               </View>
               <View style={s.prRechts}>
-                <Text style={[s.prEenRM, { color: kleuren.accent }]}>{pr.eenRM} kg</Text>
+                <Text style={[s.prEenRM, { color: kleuren.accentTekst }]}>{pr.eenRM} kg</Text>
                 <Text style={[s.prDetail, { color: kleuren.tekstGedimpt }]}>
                   {pr.gewicht}kg × {pr.reps}
                 </Text>
@@ -266,12 +266,12 @@ const s = StyleSheet.create({
     borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 16,
   },
   kaartTitel: {
-    fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.2,
+    fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1.2,
     marginBottom: 12, textTransform: 'uppercase',
   },
 
   sectieLabel: {
-    fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.2,
+    fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1.2,
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
   },
 

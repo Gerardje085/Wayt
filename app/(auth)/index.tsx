@@ -114,7 +114,7 @@ export default function AuthScreen() {
 
             <TouchableOpacity onPress={() => setModus(modus === 'inloggen' ? 'registreren' : 'inloggen')}
               style={stijlen.wissel} accessibilityLabel="Wissel modus">
-              <Text style={[stijlen.wisselTekst, { color: kleuren.accent }]}>
+              <Text style={[stijlen.wisselTekst, { color: kleuren.accentTekst }]}>
                 {modus === 'inloggen' ? 'Nog geen account? Registreer hier' : 'Terug naar inloggen'}
               </Text>
             </TouchableOpacity>
@@ -133,7 +133,7 @@ const stijlen = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   logoContainer: { alignItems: 'center', marginBottom: 32 },
   logo: { fontSize: 56, fontWeight: '900', fontFamily: 'Inter_900Black', letterSpacing: -3 },
-  tagline: { fontSize: 10, letterSpacing: 3, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
+  tagline: { fontSize: 11, letterSpacing: 3, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
   kaart: { borderRadius: 24, padding: 24, borderWidth: 1, elevation: 12 },
   tabRij: { flexDirection: 'row', borderRadius: 12, padding: 4, marginBottom: 24 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },

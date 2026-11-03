@@ -53,7 +53,7 @@ export default function RoutineDetailsScreen() {
       </View>
 
       <ScrollView style={stijlen.scroll} contentContainerStyle={stijlen.inhoud}>
-        <Text style={[stijlen.sectieLabel, { color: kleuren.accent }]}>Oefeningen</Text>
+        <Text style={[stijlen.sectieLabel, { color: kleuren.accentTekst }]}>Oefeningen</Text>
 
         {routine.oefeningen.map((item, index) => {
           const oefInfo = findExercise(item.id);
@@ -187,7 +187,7 @@ const stijlen = StyleSheet.create({
     alignItems: 'center',
   },
   detailLabel: {
-    fontSize: 10,
+    fontSize: 11,
     textTransform: 'uppercase',
     fontFamily: 'Inter_600SemiBold',
     marginBottom: 4,

@@ -221,7 +221,7 @@ export default function AdminScreen() {
         </Text>
 
         {/* ─── Instellingen Sectie ────────────────────────────────────── */}
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>STANDAARD RUSTTIJD TUSSEN SETS</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>STANDAARD RUSTTIJD TUSSEN SETS</Text>
         <View style={[stijlen.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           <Text style={[stijlen.kaartUitleg, { color: kleuren.tekstGedimpt }]}>
             Deze rusttijd wordt automatisch ingevuld bij nieuwe oefeningen in routines en live workouts:
@@ -268,7 +268,7 @@ export default function AdminScreen() {
         </View>
 
         {/* ─── Thema Instelling ────────────────────────────────────── */}
-        <Text style={[stijlen.sectie, { color: kleuren.accent, marginTop: 16 }]}>WEERGAVE & THEMA</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst, marginTop: 16 }]}>WEERGAVE & THEMA</Text>
         <View style={[stijlen.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           <View style={stijlen.rustKnoppenRij}>
             {[
@@ -303,7 +303,7 @@ export default function AdminScreen() {
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand, marginTop: 24 }]} />
 
         {/* ─── Profiel & Groepsinfo ─────────────────────────────────── */}
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>PROFIEL & ONDERZOEKSGROEP</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>PROFIEL & ONDERZOEKSGROEP</Text>
         {profile && (
           <View style={[stijlen.profielKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
             {[
@@ -325,7 +325,7 @@ export default function AdminScreen() {
         {isOnderzoeker && (
           <>
             {/* ─── A/B Vergelijking ────────────────────────────────────── */}
-            <Text style={[stijlen.sectie, { color: kleuren.accent }]}>A/B Vergelijking — Gemiddelde 1RM Groei</Text>
+            <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>A/B Vergelijking — Gemiddelde 1RM Groei</Text>
             {abLaden ? (
               <ActivityIndicator color={kleuren.accent} style={{ marginBottom: 20 }} />
             ) : abVergelijking ? (
@@ -374,7 +374,7 @@ export default function AdminScreen() {
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand }]} />
 
         {/* ─── Totalen ──────────────────────────────────────────────── */}
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Totalen</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Totalen</Text>
         <View style={stijlen.statRij}>
           <StatCard waarde={String(new Set(workouts.map(w => w.date)).size)} label="Trainingsdagen" />
           <StatCard waarde={totaalVolume.toFixed(0)} label="Vol. (kg)" />
@@ -383,7 +383,7 @@ export default function AdminScreen() {
 
         {oefeningen.length > 0 && (
           <>
-            <Text style={[stijlen.sectie, { color: kleuren.accent, marginTop: 12 }]}>Oefeningen</Text>
+            <Text style={[stijlen.sectie, { color: kleuren.accentTekst, marginTop: 12 }]}>Oefeningen</Text>
             <View style={stijlen.badgeRij}>
               {oefeningen.map((o) => (
                 <Badge key={o} label={o} kleur={kleuren.accent} achtergrond={kleuren.accentGedimpt} />
@@ -395,7 +395,7 @@ export default function AdminScreen() {
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand }]} />
 
         {/* ─── Exporteren & Uitloggen ───────────────────────────────── */}
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Exporteren & Account</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Exporteren & Account</Text>
         {isOnderzoeker && (
           <Text style={[stijlen.kaartUitleg, { color: kleuren.tekstGedimpt }]}>
             Export bevat alle deelnemers ({onderzoeksRijen.length} rijen), inclusief testgroep.
@@ -406,8 +406,8 @@ export default function AdminScreen() {
           onPress={handleExportCSV}
           accessibilityLabel="Data exporteren als CSV"
         >
-          <Ionicons name="download-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
-          <Text style={stijlen.exportTekst}>{isOnderzoeker ? 'Exporteer onderzoeksdata (CSV)' : 'Exporteer mijn data (CSV)'}</Text>
+          <Ionicons name="download-outline" size={18} color={kleuren.opSucces} style={{ marginRight: 8 }} />
+          <Text style={[stijlen.exportTekst, { color: kleuren.opSucces }]}>{isOnderzoeker ? 'Exporteer onderzoeksdata (CSV)' : 'Exporteer mijn data (CSV)'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

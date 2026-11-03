@@ -71,7 +71,7 @@ export default function ProgressScreen() {
 
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand }]} />
 
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Oefening</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Oefening</Text>
         <TouchableOpacity
           style={[stijlen.pickerWrapper, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}
           onPress={() => setSelectorZicht(true)}
@@ -85,7 +85,7 @@ export default function ProgressScreen() {
 
         {fout && <ErrorBanner bericht={fout} onProbeerOpnieuw={vernieuwen} />}
 
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Samenvatting</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Samenvatting</Text>
         <View style={stijlen.statRij}>
           {laden ? (
             <>
@@ -118,7 +118,7 @@ export default function ProgressScreen() {
 
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand }]} />
 
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Grafiek</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Grafiek</Text>
 
         <View style={[stijlen.modusSwitcher, { backgroundColor: kleuren.achtergrond }]}>
           {GRAFIEK_MODI.map(m => (
@@ -138,7 +138,7 @@ export default function ProgressScreen() {
 
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand }]} />
 
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Slaglengte & Arbeid</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Slaglengte & Arbeid</Text>
         <View style={[stijlen.romKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           <Text style={[stijlen.romTitel, { color: kleuren.tekst }]}>Waarom kost dezelfde last meer of minder energie?</Text>
           <Text style={[stijlen.romTekst, { color: kleuren.tekstGedimpt }]}>
@@ -163,7 +163,7 @@ export default function ProgressScreen() {
 
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand }]} />
 
-        <Text style={[stijlen.sectie, { color: kleuren.accent }]}>Recente Sessies</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Recente Sessies</Text>
         {!laden && recent.length === 0 ? (
           <View style={[stijlen.geenData, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
             <Text style={[stijlen.geenDataTekst, { color: kleuren.tekstGedimpt }]}>
@@ -174,7 +174,7 @@ export default function ProgressScreen() {
           <View style={[stijlen.tabel, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
             <View style={[stijlen.tabelRij, { backgroundColor: kleuren.achtergrondSecundair }]}>
               {['Datum', 'S×R', 'Gewicht', '1RM'].map((h, i) => (
-                <Text key={h} style={[stijlen.tabelKop, { color: kleuren.accent, flex: i === 0 ? 1.5 : 1 }]}>{h}</Text>
+                <Text key={h} style={[stijlen.tabelKop, { color: kleuren.accentTekst, flex: i === 0 ? 1.5 : 1 }]}>{h}</Text>
               ))}
             </View>
             {recent.map((w, i) => (
@@ -292,7 +292,7 @@ const stijlen = StyleSheet.create({
   },
   tabel: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 12 },
   tabelRij: { flexDirection: 'row', paddingVertical: 9, paddingHorizontal: 10, alignItems: 'center' },
-  tabelKop: { fontFamily: 'Inter_700Bold', fontSize: 10, textTransform: 'uppercase', textAlign: 'center', flex: 1 },
+  tabelKop: { fontFamily: 'Inter_700Bold', fontSize: 11, textTransform: 'uppercase', textAlign: 'center', flex: 1 },
   tabelCel: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   geenData: { padding: 24, borderRadius: 14, alignItems: 'center', borderWidth: 1, marginBottom: 12 },
   geenDataTekst: { textAlign: 'center', fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 22 },

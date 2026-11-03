@@ -148,13 +148,13 @@ export default function WorkoutForm({
 
       <TouchableOpacity style={stijlen.addSetKnop} onPress={voegSetToe}>
         <Ionicons name="add" size={16} color={kleuren.accent} style={{ marginRight: 4 }} />
-        <Text style={{ color: kleuren.accent, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Set toevoegen</Text>
+        <Text style={{ color: kleuren.accentTekst, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Set toevoegen</Text>
       </TouchableOpacity>
 
       <View style={stijlen.berekenRij}>
         <View style={[stijlen.berekenKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           <Text style={[stijlen.berekenLabel, { color: kleuren.tekstGedimpt }]}>Voltooid Volume</Text>
-          <Text style={[stijlen.berekenWaarde, { color: kleuren.accent }]}>{totaalVolume.toFixed(0)} kg</Text>
+          <Text style={[stijlen.berekenWaarde, { color: kleuren.accentTekst }]}>{totaalVolume.toFixed(0)} kg</Text>
         </View>
       </View>
 
@@ -204,6 +204,6 @@ const stijlen = StyleSheet.create({
 
   berekenRij: { flexDirection: 'row', gap: 8, marginBottom: 18 },
   berekenKaart: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 10, alignItems: 'center' },
-  berekenLabel: { fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: 'Inter_400Regular', marginBottom: 4 },
+  berekenLabel: { fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', fontFamily: 'Inter_400Regular', marginBottom: 4 },
   berekenWaarde: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 });

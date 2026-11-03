@@ -145,7 +145,7 @@ const s = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
   },
   setsTekst: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_400Regular',
     marginTop: 2,
   },

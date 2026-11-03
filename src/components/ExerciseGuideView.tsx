@@ -100,7 +100,7 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
             onPress={laadInstructies}
           >
             <Ionicons name="refresh" size={14} color={kleuren.accent} />
-            <Text style={[s.herlaadTekst, { color: kleuren.accent }]}>Opnieuw proberen</Text>
+            <Text style={[s.herlaadTekst, { color: kleuren.accentTekst }]}>Opnieuw proberen</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -148,7 +148,7 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
         {data.targetMuscles.map(m => (
           <View key={m} style={[s.badge, { backgroundColor: kleuren.accent + '22', borderColor: kleuren.accent + '55' }]}>
             <Ionicons name="flash-outline" size={12} color={kleuren.accent} />
-            <Text style={[s.badgeTekst, { color: kleuren.accent }]}>{m.toUpperCase()}</Text>
+            <Text style={[s.badgeTekst, { color: kleuren.accentTekst }]}>{m.toUpperCase()}</Text>
           </View>
         ))}
 
@@ -208,7 +208,7 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
           {huidigeStappen.map((stap, index) => (
             <View key={index} style={s.stapRij}>
               <View style={[s.stapNummerBadge, { backgroundColor: kleuren.accent + '1A', borderColor: kleuren.accent + '44' }]}>
-                <Text style={[s.stapNummer, { color: kleuren.accent }]}>{index + 1}</Text>
+                <Text style={[s.stapNummer, { color: kleuren.accentTekst }]}>{index + 1}</Text>
               </View>
               <Text style={[s.stapTekst, { color: kleuren.tekst }]}>
                 {formatStap(stap)}
@@ -343,7 +343,7 @@ const s = StyleSheet.create({
     borderTopColor: 'rgba(128,128,128,0.1)',
   },
   instructiesTitel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 1.2,
   },
@@ -360,7 +360,7 @@ const s = StyleSheet.create({
     borderRadius: 6,
   },
   taalKnopTekst: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
   },
   stappenLijst: {
@@ -403,7 +403,7 @@ const s = StyleSheet.create({
     borderTopColor: 'rgba(128,128,128,0.1)',
   },
   attributionTekst: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_400Regular',
     fontStyle: 'italic',
     textAlign: 'center',

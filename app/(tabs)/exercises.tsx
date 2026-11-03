@@ -82,7 +82,7 @@ function FilterModal({
           <View style={{ alignItems: 'center' }}>
             <Text style={[fm.headerTitel, { color: kleuren.tekst }]}>Filters & Sorteren</Text>
             {aantalActieveFilters > 0 && (
-              <Text style={[fm.filterBadgeTekst, { color: kleuren.accent }]}>
+              <Text style={[fm.filterBadgeTekst, { color: kleuren.accentTekst }]}>
                 {aantalActieveFilters} filter{aantalActieveFilters > 1 ? 's' : ''} actief
               </Text>
             )}
@@ -260,7 +260,7 @@ const fm = StyleSheet.create({
   sluitKnop: { padding: 4 },
   headerTitel: { fontSize: 16, fontFamily: 'Inter_700Bold' },
   filterBadgeTekst: { fontSize: 11, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
-  sectieTitel: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginBottom: 10 },
+  sectieTitel: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginBottom: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row',
@@ -348,7 +348,7 @@ function CustomOefeningModal({
             </TouchableOpacity>
             <Text style={[cm.titel, { color: kleuren.tekst }]}>Custom Oefening</Text>
             <TouchableOpacity onPress={handleMaken}>
-              <Text style={{ color: kleuren.accent, fontFamily: 'Inter_700Bold', fontSize: 16 }}>Opslaan</Text>
+              <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_700Bold', fontSize: 16 }}>Opslaan</Text>
             </TouchableOpacity>
           </View>
 
@@ -374,7 +374,7 @@ function CustomOefeningModal({
                   }]}
                   onPress={() => setType(t.type)}
                 >
-                  <Text style={{ color: type === t.type ? kleuren.accent : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
+                  <Text style={{ color: type === t.type ? kleuren.accentTekst : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
                     {t.label}
                   </Text>
                 </TouchableOpacity>
@@ -392,7 +392,7 @@ function CustomOefeningModal({
                   }]}
                   onPress={() => setGroep(g)}
                 >
-                  <Text style={{ color: groep === g ? (GROEP_KLEUR[g] || kleuren.accent) : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
+                  <Text style={{ color: groep === g ? (GROEP_KLEUR[g] || kleuren.accentTekst) : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
                     {g}
                   </Text>
                 </TouchableOpacity>
@@ -409,7 +409,7 @@ const cm = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
   titel: { fontSize: 16, fontFamily: 'Inter_700Bold' },
-  label: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1, marginBottom: 8, marginTop: 20, textTransform: 'uppercase' },
+  label: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1, marginBottom: 8, marginTop: 20, textTransform: 'uppercase' },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16, fontFamily: 'Inter_400Regular', marginBottom: 4 },
   groepRaster: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   groepKnop: { borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 },
@@ -525,7 +525,7 @@ export default function ExercisesTab() {
           onPress={() => setCustomModal(true)}
         >
           <Ionicons name="add" size={16} color={kleuren.accent} />
-          <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Custom</Text>
+          <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Custom</Text>
         </TouchableOpacity>
       </View>
 
@@ -609,7 +609,7 @@ export default function ExercisesTab() {
         <View style={[s.actieveFiltersBalk, { borderBottomColor: kleuren.kaartRand }]}>
           <Text style={[s.actieveFiltersTekst, { color: kleuren.tekstGedimpt }]}>
             Filters:{' '}
-            {actieveGroep && <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold' }}>{actieveGroep} </Text>}
+            {actieveGroep && <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_600SemiBold' }}>{actieveGroep} </Text>}
             {actiefApparaat && <Text style={{ color: kleuren.tekstSecundair, fontFamily: 'Inter_600SemiBold' }}>• {actiefApparaat} </Text>}
             {actiefDoel && <Text style={{ color: kleuren.tekstSecundair, fontFamily: 'Inter_600SemiBold' }}>• {formatTargetDutch(actiefDoel)} </Text>}
             {zoekterm ? <Text style={{ color: kleuren.tekstGedimpt }}>• "{zoekterm}"</Text> : null}
@@ -726,7 +726,7 @@ const s = StyleSheet.create({
   },
   filterTriggerBadgeTekst: {
     color: '#FFF',
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
   },
   chip: {
@@ -779,7 +779,7 @@ const s = StyleSheet.create({
   oefeningNaam: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   metaRij: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   miniBadge: { borderRadius: 4, borderWidth: 1, paddingHorizontal: 5, paddingVertical: 1 },
-  miniBadgeTekst: { fontSize: 9, fontFamily: 'Inter_700Bold', textTransform: 'uppercase' },
+  miniBadgeTekst: { fontSize: 11, fontFamily: 'Inter_700Bold', textTransform: 'uppercase' },
   metaTekst: { fontSize: 11, fontFamily: 'Inter_400Regular' },
   leegContainer: {
     padding: 40,

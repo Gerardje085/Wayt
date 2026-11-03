@@ -101,7 +101,7 @@ function FilterModal({
           <View style={{ alignItems: 'center' }}>
             <Text style={[fm.headerTitel, { color: kleuren.tekst }]}>Filters & Sorteren</Text>
             {aantalActieveFilters > 0 && (
-              <Text style={[fm.filterBadgeTekst, { color: kleuren.accent }]}>
+              <Text style={[fm.filterBadgeTekst, { color: kleuren.accentTekst }]}>
                 {aantalActieveFilters} filter{aantalActieveFilters > 1 ? 's' : ''} actief
               </Text>
             )}
@@ -117,7 +117,7 @@ function FilterModal({
 
         <ScrollView style={fm.inhoud} showsVerticalScrollIndicator={false}>
           {/* Spiergroep */}
-          <Text style={[fm.sectieTitel, { color: kleuren.accent }]}>SPIERGROEP</Text>
+          <Text style={[fm.sectieTitel, { color: kleuren.accentTekst }]}>SPIERGROEP</Text>
           <View style={fm.chipGrid}>
             <TouchableOpacity
               style={[
@@ -153,7 +153,7 @@ function FilterModal({
           </View>
 
           {/* Apparaat */}
-          <Text style={[fm.sectieTitel, { color: kleuren.accent }]}>APPARAAT / MATERIAAL</Text>
+          <Text style={[fm.sectieTitel, { color: kleuren.accentTekst }]}>APPARAAT / MATERIAAL</Text>
           <View style={fm.chipGrid}>
             {APPARATEN.map((app) => {
               const actief = actiefApparaat === app.waarde;
@@ -176,7 +176,7 @@ function FilterModal({
           </View>
 
           {/* Doelspier */}
-          <Text style={[fm.sectieTitel, { color: kleuren.accent }]}>DOELSPIER (TARGET)</Text>
+          <Text style={[fm.sectieTitel, { color: kleuren.accentTekst }]}>DOELSPIER (TARGET)</Text>
           <View style={fm.chipGrid}>
             {POPULAIRE_DOELEN.map((d) => {
               const actief = actiefDoel === d.target;
@@ -199,7 +199,7 @@ function FilterModal({
           </View>
 
           {/* Sortering */}
-          <Text style={[fm.sectieTitel, { color: kleuren.accent }]}>SORTEER OP</Text>
+          <Text style={[fm.sectieTitel, { color: kleuren.accentTekst }]}>SORTEER OP</Text>
           <View style={fm.sorteerLijst}>
             {[
               { id: 'naam_az', label: 'Alfabetisch (A – Z)', icoon: 'text-outline' },
@@ -225,7 +225,7 @@ function FilterModal({
                     color={actief ? kleuren.accent : kleuren.tekstGedimpt}
                     style={{ marginRight: 10 }}
                   />
-                  <Text style={[fm.sorteerTekst, { color: actief ? kleuren.accent : kleuren.tekst }]}>{opt.label}</Text>
+                  <Text style={[fm.sorteerTekst, { color: actief ? kleuren.accentTekst : kleuren.tekst }]}>{opt.label}</Text>
                   {actief && <Ionicons name="checkmark" size={18} color={kleuren.accent} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
               );
@@ -364,7 +364,7 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
               <Ionicons name="options-outline" size={20} color={aantalActieveFilters > 0 ? '#FFF' : kleuren.tekst} />
               {aantalActieveFilters > 0 && (
                 <View style={[stijlen.filterBadge, { backgroundColor: '#FFF' }]}>
-                  <Text style={[stijlen.filterBadgeTekst, { color: kleuren.accent }]}>{aantalActieveFilters}</Text>
+                  <Text style={[stijlen.filterBadgeTekst, { color: kleuren.accentTekst }]}>{aantalActieveFilters}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -406,10 +406,10 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
             <View style={[stijlen.actieveFiltersBalk, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
               <Text style={[stijlen.actieveFiltersTekst, { color: kleuren.tekst }]} numberOfLines={1}>
                 Filters:{' '}
-                {actieveGroep ? <Text style={{ color: kleuren.accent }}>{actieveGroep} </Text> : null}
-                {actiefApparaat ? <Text style={{ color: kleuren.accent }}>• {actiefApparaat} </Text> : null}
-                {actiefDoel ? <Text style={{ color: kleuren.accent }}>• {formatTargetDutch(actiefDoel)} </Text> : null}
-                {sortering !== 'naam_az' ? <Text style={{ color: kleuren.accent }}>• gesorteerd </Text> : null}
+                {actieveGroep ? <Text style={{ color: kleuren.accentTekst }}>{actieveGroep} </Text> : null}
+                {actiefApparaat ? <Text style={{ color: kleuren.accentTekst }}>• {actiefApparaat} </Text> : null}
+                {actiefDoel ? <Text style={{ color: kleuren.accentTekst }}>• {formatTargetDutch(actiefDoel)} </Text> : null}
+                {sortering !== 'naam_az' ? <Text style={{ color: kleuren.accentTekst }}>• gesorteerd </Text> : null}
               </Text>
               <TouchableOpacity onPress={resetAlleFilters}>
                 <Text style={[stijlen.resetTekst, { color: kleuren.fout }]}>Wis filters</Text>
@@ -447,7 +447,7 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
                     )}
                   </View>
                   <View style={stijlen.tekstContainer}>
-                    <Text style={[stijlen.oefeningNaam, { color: isActief ? kleuren.accent : kleuren.tekst }]} numberOfLines={1}>
+                    <Text style={[stijlen.oefeningNaam, { color: isActief ? kleuren.accentTekst : kleuren.tekst }]} numberOfLines={1}>
                       {item.naam || item.name}
                     </Text>
                     <Text style={[stijlen.oefeningGroep, { color: kleuren.tekstGedimpt }]}>
@@ -464,7 +464,7 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
                 <Text style={[stijlen.leegTekst, { color: kleuren.tekstGedimpt }]}>Geen oefeningen gevonden</Text>
                 {aantalActieveFilters > 0 && (
                   <TouchableOpacity style={[stijlen.resetKnopGroot, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]} onPress={resetAlleFilters}>
-                    <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold' }}>Wis alle filters</Text>
+                    <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_600SemiBold' }}>Wis alle filters</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -571,7 +571,7 @@ const stijlen = StyleSheet.create({
     alignItems: 'center',
   },
   filterBadgeTekst: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
   },
   chip: {

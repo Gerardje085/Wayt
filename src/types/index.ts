@@ -72,7 +72,9 @@ export interface ThemaKleuren {
   accentSecundair: string;
   accentLicht: string;
   accentGedimpt: string;
+  accentTekst: string;
   succes: string;
+  opSucces: string;
   fout: string;
   waarschuwing: string;
   warmup: string;

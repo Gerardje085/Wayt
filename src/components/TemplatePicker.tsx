@@ -177,7 +177,7 @@ const stijlen = StyleSheet.create({
     marginBottom: 4,
   },
   detail: {
-    fontSize: 10,
+    fontSize: 11,
     color: 'rgba(255,255,255,0.75)',
     fontFamily: 'Inter_400Regular',
     textAlign: 'center',
@@ -192,7 +192,7 @@ const stijlen = StyleSheet.create({
   },
   actiefTekst: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
   },
 });

@@ -88,7 +88,7 @@ export default function WarmupModal({ zichtbaar, onSluiten, werkGewicht, oefenin
 
           <View style={[s.werkGewichtRij, { backgroundColor: kleuren.accentGedimpt, borderColor: kleuren.accent + '44' }]}>
             <Text style={[s.werkGewichtLabel, { color: kleuren.tekstGedimpt }]}>Werkgewicht</Text>
-            <Text style={[s.werkGewichtWaarde, { color: kleuren.accent }]}>{werkGewicht} kg</Text>
+            <Text style={[s.werkGewichtWaarde, { color: kleuren.accentTekst }]}>{werkGewicht} kg</Text>
           </View>
 
           <Text style={[s.sectionLabel, { color: kleuren.tekstGedimpt }]}>OPWARMSETS</Text>
@@ -181,7 +181,7 @@ const s = StyleSheet.create({
     letterSpacing: -0.5,
   },
   sectionLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 1.5,
     marginBottom: 10,

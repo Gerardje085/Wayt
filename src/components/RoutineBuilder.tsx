@@ -241,7 +241,7 @@ function OefeningRij({
         onPress={() => onVoegSetToe(index)}
       >
         <Ionicons name="add" size={16} color={kleuren.accent} style={{ marginRight: 6 }} />
-        <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Set toevoegen</Text>
+        <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Set toevoegen</Text>
       </TouchableOpacity>
 
       {/* Rusttijd Sectie met Presets en Custom Rusttijd */}
@@ -262,7 +262,7 @@ function OefeningRij({
                 ]}
                 onPress={() => onWijzigRustTijd(index, opt.seconden)}
               >
-                <Text style={{ color: actief ? kleuren.accent : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+                <Text style={{ color: actief ? kleuren.accentTekst : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
                   {opt.label}
                 </Text>
               </TouchableOpacity>
@@ -280,7 +280,7 @@ function OefeningRij({
             ]}
             onPress={() => onOpenCustomRust(index, huidigeRust)}
           >
-            <Text style={{ color: !isPresetActief ? kleuren.accent : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+            <Text style={{ color: !isPresetActief ? kleuren.accentTekst : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
               {!isPresetActief ? `${huidigeRust}s (Aangepast)` : '+ Custom'}
             </Text>
           </TouchableOpacity>
@@ -658,7 +658,7 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
               {initialRoutine ? 'Routine Aanpassen' : 'Nieuwe Routine'}
             </Text>
             <TouchableOpacity onPress={handleOpslaan} style={stijlen.headerKnop}>
-              <Text style={{ color: kleuren.accent, fontFamily: 'Inter_700Bold' }}>Opslaan</Text>
+              <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_700Bold' }}>Opslaan</Text>
             </TouchableOpacity>
           </View>
 
@@ -674,11 +674,11 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
             </View>
 
             <View style={stijlen.sectieHeaderRij}>
-              <Text style={[stijlen.sectieLabel, { color: kleuren.accent }]}>OEFENINGEN</Text>
+              <Text style={[stijlen.sectieLabel, { color: kleuren.accentTekst }]}>OEFENINGEN</Text>
               {oefeningen.length > 1 && (
                 <TouchableOpacity onPress={() => setIsReordering(true)} style={stijlen.reorderTrigger}>
                   <Ionicons name="swap-vertical" size={16} color={kleuren.accent} style={{ marginRight: 4 }} />
-                  <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Volgorde</Text>
+                  <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Volgorde</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -705,7 +705,7 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
               onPress={() => setSelectorZichtbaar(true)}
             >
               <Ionicons name="add-circle" size={20} color={kleuren.accent} style={{ marginRight: 8 }} />
-              <Text style={[stijlen.groteVoegToeTekst, { color: kleuren.accent }]}>Oefening toevoegen</Text>
+              <Text style={[stijlen.groteVoegToeTekst, { color: kleuren.accentTekst }]}>Oefening toevoegen</Text>
             </TouchableOpacity>
 
             <View style={{ height: 40 }} />
@@ -894,7 +894,7 @@ const stijlen = StyleSheet.create({
     minHeight: 36,
   },
   tableHeader: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 1,
   },
@@ -933,7 +933,7 @@ const stijlen = StyleSheet.create({
     borderTopColor: 'rgba(128,128,128,0.1)',
   },
   rustLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 1,
     marginBottom: 6,

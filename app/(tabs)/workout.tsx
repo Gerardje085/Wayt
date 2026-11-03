@@ -238,7 +238,7 @@ export default function WorkoutTab() {
             onPress={() => { setBewerkRoutine(undefined); setBuilderZichtbaar(true); }}
           >
             <Ionicons name="add" size={18} color={kleuren.accent} />
-            <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Nieuw</Text>
+            <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Nieuw</Text>
           </TouchableOpacity>
         </View>
 

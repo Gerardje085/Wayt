@@ -199,7 +199,13 @@ function SetRij({
   return (
     <View>
       <Animated.View entering={FadeIn.duration(200)} style={[sr.rij, { backgroundColor: bgKleur, borderColor: kleuren.kaartRand }]}>
-        <TouchableOpacity onLongPress={() => setTypeModal(true)} style={sr.nummerKnop}>
+        <TouchableOpacity
+          onPress={() => !isCompleted && setTypeModal(true)}
+          onLongPress={() => setTypeModal(true)}
+          style={sr.nummerKnop}
+          accessibilityRole="button"
+          accessibilityLabel={`Set ${index + 1}, type wijzigen`}
+        >
           <View style={[sr.nummerBadge, {
             backgroundColor: isCompleted ? kleuren.succes + '33' : typeKleur + '22',
             borderColor: isCompleted ? kleuren.succes : typeKleur + '66',
@@ -236,6 +242,7 @@ function SetRij({
               editable={!isCompleted}
               selectTextOnFocus
               onFocus={() => setQuickAddZicht(true)}
+              accessibilityLabel={`Gewicht set ${index + 1} in kilogram`}
             />
           </TouchableOpacity>
         )}
@@ -249,10 +256,15 @@ function SetRij({
           placeholderTextColor={kleuren.tekstGedimpt}
           editable={!isCompleted}
           selectTextOnFocus
+          accessibilityLabel={`Herhalingen set ${index + 1}`}
         />
 
-        <TouchableOpacity onPress={handleCheck} style={[sr.checkKnop, { backgroundColor: isCompleted ? kleuren.succes : kleuren.achtergrond, borderColor: isCompleted ? kleuren.succes : kleuren.kaartRand }]}>
-          <Ionicons name="checkmark" size={22} color={isCompleted ? '#FFF' : kleuren.tekstGedimpt} />
+        <TouchableOpacity
+          onPress={handleCheck}
+          accessibilityRole="button"
+          accessibilityLabel={isCompleted ? `Set ${index + 1} ongedaan maken` : `Set ${index + 1} afvinken`}
+          style={[sr.checkKnop, { backgroundColor: isCompleted ? kleuren.succes : kleuren.achtergrond, borderColor: isCompleted ? kleuren.succes : kleuren.kaartRand }]}>
+          <Ionicons name="checkmark" size={22} color={isCompleted ? kleuren.opSucces : kleuren.tekstGedimpt} />
         </TouchableOpacity>
 
         <SetTypeModal
@@ -299,7 +311,7 @@ const sr = StyleSheet.create({
   nummerKnop: { width: 38, alignItems: 'center' },
   nummerBadge: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   nummerTekst: { fontSize: 13, fontFamily: 'Inter_700Bold' },
-  vorige: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  vorige: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   input: { flex: 1.2, borderRadius: 10, textAlign: 'center', paddingVertical: 9, fontSize: 16, fontFamily: 'Inter_700Bold' },
   checkKnop: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   quickAddRij: {
@@ -316,11 +328,12 @@ const sr = StyleSheet.create({
     flex: 1,
     borderRadius: 8,
     borderWidth: 1,
-    paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   quickTekst: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'Inter_700Bold',
   },
 });
@@ -418,7 +431,7 @@ function OefeningKaart({
           <View style={ok.footer}>
             <TouchableOpacity style={ok.addSetKnop} onPress={() => addSet(oefening.id)}>
               <Ionicons name="add" size={16} color={kleuren.accent} />
-              <Text style={{ color: kleuren.accent, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Set toevoegen</Text>
+              <Text style={{ color: kleuren.accentTekst, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Set toevoegen</Text>
             </TouchableOpacity>
 
             {toonGewicht && werkGewicht > 0 && (
@@ -466,7 +479,7 @@ const ok = StyleSheet.create({
   doelTitel: { fontSize: 15, fontFamily: 'Inter_700Bold' },
   doelSub: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2 },
   kolomHeaders: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2, marginBottom: 6, gap: 8 },
-  kolomHeader: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.8 },
+  kolomHeader: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.8 },
   footer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   addSetKnop: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, padding: 10 },
   warmupKnop: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 10, borderRadius: 10, borderWidth: 1 },
@@ -632,7 +645,7 @@ export default function WorkoutSession() {
   return (
     <SafeAreaView style={[s.veilig, { backgroundColor: kleuren.achtergrond }]}>
       <View style={[s.header, { borderBottomColor: kleuren.kaartRand }]}>
-        <TouchableOpacity style={s.headerKnop} onPress={() => {
+        <TouchableOpacity style={s.headerKnop} accessibilityLabel="Workout minimaliseren" onPress={() => {
           if (router.canGoBack()) router.back();
           else router.replace('/(tabs)/workout');
         }}>
@@ -641,7 +654,7 @@ export default function WorkoutSession() {
 
         <View style={s.headerMidden}>
           <Text style={[s.routineNaam, { color: kleuren.tekst }]} numberOfLines={1}>{routineNaam}</Text>
-          <Text style={[s.timerTekst, { color: kleuren.accent }]}>{formatTijd(verlopenTijd)}</Text>
+          <Text style={[s.timerTekst, { color: kleuren.accentTekst }]}>{formatTijd(verlopenTijd)}</Text>
         </View>
 
         <TouchableOpacity
@@ -650,8 +663,8 @@ export default function WorkoutSession() {
           disabled={ladenOpslaan}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <Ionicons name="checkmark" size={16} color="#FFF" />
-            <Text style={s.afrondenTekst}>Klaar</Text>
+            <Ionicons name="checkmark" size={16} color={kleuren.opSucces} />
+            <Text style={[s.afrondenTekst, { color: kleuren.opSucces }]}>Klaar</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -666,11 +679,11 @@ export default function WorkoutSession() {
           }]}
         >
           <Ionicons name="timer-outline" size={16} color={rustTimerResterend <= 10 ? kleuren.fout : kleuren.accent} />
-          <Text style={[s.rustTekst, { color: rustTimerResterend <= 10 ? kleuren.fout : kleuren.accent }]}>
+          <Text style={[s.rustTekst, { color: rustTimerResterend <= 10 ? kleuren.fout : kleuren.accentTekst }]}>
             Rust: {formatTijd(rustTimerResterend)}
           </Text>
-          <TouchableOpacity onPress={stopRustTimer}>
-            <Text style={{ color: kleuren.tekstGedimpt, fontSize: 13 }}>Overslaan</Text>
+          <TouchableOpacity onPress={stopRustTimer} style={s.overslaanKnop} accessibilityRole="button">
+            <Text style={{ color: kleuren.tekstSecundair, fontSize: 15, fontFamily: 'Inter_600SemiBold' }}>Overslaan</Text>
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -696,7 +709,7 @@ export default function WorkoutSession() {
           onPress={() => setSelectorZicht(true)}
         >
           <Ionicons name="add-circle-outline" size={20} color={kleuren.accent} style={{ marginRight: 8 }} />
-          <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 15 }}>Oefening Toevoegen</Text>
+          <Text style={{ color: kleuren.accentTekst, fontFamily: 'Inter_600SemiBold', fontSize: 15 }}>Oefening Toevoegen</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -734,17 +747,18 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     padding: 14, borderBottomWidth: 1, gap: 12,
   },
-  headerKnop: { width: 38, height: 38, justifyContent: 'center', alignItems: 'center' },
+  headerKnop: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   headerMidden: { flex: 1, alignItems: 'center' },
   routineNaam: { fontSize: 15, fontFamily: 'Inter_700Bold' },
   timerTekst: { fontSize: 13, fontFamily: 'Inter_900Black', letterSpacing: 1, marginTop: 2 },
-  afrondenKnop: { borderRadius: 10, paddingVertical: 9, paddingHorizontal: 16 },
+  afrondenKnop: { borderRadius: 10, minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 },
   afrondenTekst: { color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 14 },
   rustBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1,
   },
-  rustTekst: { flex: 1, fontSize: 14, fontFamily: 'Inter_700Bold' },
+  rustTekst: { flex: 1, fontSize: 15, fontFamily: 'Inter_700Bold' },
+  overslaanKnop: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
   scrollInhoud: { padding: 16, paddingTop: 12 },
   addOefKnop: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
