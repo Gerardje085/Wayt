@@ -13,7 +13,8 @@ import {
   formatTargetDutch,
   formatCategoryDutch,
 } from '../../src/data/exercises';
-import { bereken1RM } from '../../src/context/LiveWorkoutContext';
+import { groepeerSessies, vatSetsSamen, formatKg } from '../../src/utils/sessies';
+import { formatDatumLang } from '../../src/utils/datum';
 import ProgressChart from '../../src/components/ProgressChart';
 import { GROEP_KLEUR } from '../../src/theme/groepKleuren';
 import ExerciseGuideView from '../../src/components/ExerciseGuideView';
@@ -35,17 +36,14 @@ export default function OefeningDetail() {
     if (id) haalVoortgangOp(id);
   }, [id]);
 
-  const pr = workouts.reduce((best, w) => {
-    const eenRM = bereken1RM(parseFloat(String(w.weight)) || 0, parseInt(String(w.reps)) || 0);
-    return eenRM > best ? eenRM : best;
-  }, 0);
-
-  const recent = [...workouts].reverse().slice(0, 10);
+  const sessies = useMemo(() => groepeerSessies(workouts), [workouts]);
+  const pr = sessies.reduce((best, sessie) => Math.max(best, sessie.beste1RM), 0);
+  const recent = [...sessies].reverse().slice(0, 10);
 
   return (
     <SafeAreaView style={[s.veilig, { backgroundColor: kleuren.achtergrond }]}>
       <View style={[s.header, { borderBottomColor: kleuren.kaartRand }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.terugKnop}>
+        <TouchableOpacity onPress={() => router.back()} style={s.terugKnop} accessibilityLabel="Terug">
           <Ionicons name="arrow-back" size={22} color={kleuren.tekst} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -121,38 +119,40 @@ export default function OefeningDetail() {
                 </Text>
               </View>
               <View style={[s.statKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-                <Text style={[s.statLabel, { color: kleuren.tekstGedimpt }]}>GELOGDE SESSIES</Text>
+                <Text style={[s.statLabel, { color: kleuren.tekstGedimpt }]}>TRAININGEN</Text>
                 <Text style={[s.statWaarde, { color: kleuren.tekst }]}>
-                  {workouts.length}
+                  {sessies.length}
                 </Text>
               </View>
             </View>
 
             {/* Progressie Grafiek */}
             <View style={{ marginBottom: 16 }}>
-              <ProgressChart workouts={workouts} oefeningId={id || ''} laden={laden} />
+              <ProgressChart workouts={workouts} laden={laden} modus="eenRM" />
             </View>
 
             {/* Recente Sessies */}
             <View style={[s.sectieKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-              <Text style={[s.sectieTitel, { color: kleuren.tekstSecundair }]}>RECENTE SESSIES</Text>
+              <Text style={[s.sectieTitel, { color: kleuren.tekstSecundair }]}>RECENTE TRAININGEN</Text>
               {recent.length === 0 ? (
                 <Text style={[s.leegTekst, { color: kleuren.tekstGedimpt }]}>Nog geen workouts gelogd voor deze oefening.</Text>
               ) : (
-                recent.map((w, index) => (
-                  <View key={w.id || index} style={[s.geschiedenisRij, { borderBottomColor: kleuren.kaartRand }]}>
-                    <View>
+                recent.map(sessie => (
+                  <View key={sessie.datum} style={[s.geschiedenisRij, { borderBottomColor: kleuren.kaartRand }]}>
+                    <View style={{ flex: 1 }}>
                       <Text style={[s.datumTekst, { color: kleuren.tekst }]}>
-                        {new Date(w.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                        {formatDatumLang(sessie.datum)}
                       </Text>
                       <Text style={[s.subDatum, { color: kleuren.tekstGedimpt }]}>
-                        {w.sets} sets x {w.reps} reps
+                        {vatSetsSamen(sessie.sets)}
                       </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[s.gewichtTekst, { color: accentKleur }]}>{w.weight} kg</Text>
+                      <Text style={[s.gewichtTekst, { color: kleuren.tekst }]}>
+                        {sessie.beste1RM > 0 ? `1RM ${formatKg(sessie.beste1RM)}` : '—'}
+                      </Text>
                       <Text style={[s.subDatum, { color: kleuren.tekstGedimpt }]}>
-                        Volume: {w.volume ? `${w.volume} kg` : '—'}
+                        {Math.round(sessie.volume)} kg · {Math.round(sessie.joules)} J
                       </Text>
                     </View>
                   </View>
@@ -176,7 +176,11 @@ const s = StyleSheet.create({
     gap: 12,
   },
   terugKnop: {
-    padding: 4,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -8,
   },
   titel: {
     fontSize: 18,

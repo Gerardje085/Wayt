@@ -12,8 +12,9 @@ import { SkeletonBlok } from './SkeletonLoader';
 import { useThema } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useVoortgang } from '../hooks/useWorkouts';
-import { bereken1RM } from '../context/LiveWorkoutContext';
 import type { Workout } from '../types';
+import { groepeerSessies } from '../utils/sessies';
+import { formatDatumKort } from '../utils/datum';
 
 const { width: SCHERM_BREEDTE } = Dimensions.get('window');
 const GRAFIEK_BREEDTE = SCHERM_BREEDTE - 40;
@@ -29,9 +30,9 @@ interface ProgressChartProps {
 }
 
 const MODUS_CONFIG: Record<GrafiekModus, { label: string; suffix: string; noot: string }> = {
-  volume: { label: 'Volume (kg) per Sessie', suffix: ' kg', noot: '* Volume = sets x reps x gewicht' },
-  arbeid: { label: 'Arbeid (Joules) per Sessie', suffix: ' J', noot: '* Arbeid = gewicht x 9,81 x slaglengte x reps' },
-  eenRM:  { label: 'Geschat 1RM per Sessie', suffix: ' kg', noot: '* Epley-formule: gewicht x (1 + reps / 30)' },
+  volume: { label: 'Totaal volume per training', suffix: ' kg', noot: 'Volume = reps × gewicht, opgeteld over alle sets' },
+  arbeid: { label: 'Totale arbeid per training', suffix: ' J', noot: 'Arbeid = gewicht × 9,81 × slaglengte × reps, opgeteld' },
+  eenRM:  { label: 'Beste geschatte 1RM per training', suffix: ' kg', noot: 'Epley-formule: gewicht × (1 + reps / 30), warm-ups niet meegeteld' },
 };
 
 export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp, oefeningId, kleuren: kleurenProp, modus = 'volume' }: ProgressChartProps) {
@@ -46,16 +47,17 @@ export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp
 
   const workouts = workoutsProp ?? geladen;
   const laden    = ladenProp ?? (oefeningId ? ladenGeladen : false);
+  const sessies  = React.useMemo(() => groepeerSessies(workouts ?? []), [workouts]);
 
   const opaciteit = useSharedValue(0);
 
   useEffect(() => {
-    if (!laden && workouts.length >= 2) {
+    if (!laden && sessies.length >= 2) {
       opaciteit.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) });
     } else {
       opaciteit.value = 0;
     }
-  }, [laden, workouts.length, opaciteit]);
+  }, [laden, sessies.length, opaciteit]);
 
   const animStijl = useAnimatedStyle(() => ({ opacity: opaciteit.value }));
 
@@ -68,7 +70,7 @@ export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp
     );
   }
 
-  if (!workouts || workouts.length < 2) {
+  if (sessies.length < 2) {
     return (
       <View style={[stijlen.geenData, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
         <Ionicons name="bar-chart-outline" size={40} color={kleuren.tekstGedimpt} style={{ marginBottom: 12 }} />
@@ -80,14 +82,12 @@ export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp
     );
   }
 
-  const labels = workouts.map(w =>
-    new Date(w.date).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
-  );
+  const labels = sessies.map(sessie => formatDatumKort(sessie.datum));
 
-  const dataPunten = workouts.map(w => {
-    if (modus === 'volume') return parseFloat(String(w.volume)) || 0;
-    if (modus === 'arbeid') return parseFloat(String(w.work_joules)) || 0;
-    return bereken1RM(Number(w.weight), Number(w.reps));
+  const dataPunten = sessies.map(sessie => {
+    if (modus === 'volume') return Math.round(sessie.volume);
+    if (modus === 'arbeid') return Math.round(sessie.joules);
+    return sessie.beste1RM;
   });
 
   const modusInfo = MODUS_CONFIG[modus];
@@ -117,7 +117,7 @@ export default function ProgressChart({ workouts: workoutsProp, laden: ladenProp
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <LineChart
           data={grafiekData}
-          width={Math.max(GRAFIEK_BREEDTE, workouts.length * 80)}
+          width={Math.max(GRAFIEK_BREEDTE, sessies.length * 64)}
           height={220}
           chartConfig={grafiekConfig}
           bezier

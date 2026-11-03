@@ -11,6 +11,7 @@ import {
 } from '../lib/offlineStore';
 import { useNetworkStatus } from './useNetworkStatus';
 import type { Workout, NieuweWorkout } from '../types';
+import { canoniekeId } from '../lib/trainingsHistorie';
 
 // ─── Vorige sessie ────────────────────────────────────────────────────────────
 
@@ -72,15 +73,16 @@ export function useVoortgang(userId: string | undefined): VoortgangResult {
     setLaden(true);
     setFout(null);
     try {
+      const doel = canoniekeId(oefening);
       const { data, error } = await supabase
         .from('workouts')
         .select('*')
         .eq('user_id', userId)
-        .eq('exercise', oefening)
-        .order('date', { ascending: true });
+        .order('date', { ascending: true })
+        .order('id', { ascending: true });
 
       if (error) throw error;
-      setWorkouts((data as Workout[]) ?? []);
+      setWorkouts(((data as Workout[]) ?? []).filter(w => canoniekeId(w.exercise) === doel));
     } catch (err) {
       setFout((err as Error).message);
       setWorkouts([]);

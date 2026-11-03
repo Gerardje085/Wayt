@@ -4,8 +4,9 @@ import {
   TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Image, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import TerugKnop from '../src/components/ui/TerugKnop';
 import { useRouter } from 'expo-router';
-import { useThema } from '../../src/context/ThemeContext';
+import { useThema } from '../src/context/ThemeContext';
 import {
   OEFENINGEN_DB,
   type OefeningDef,
@@ -16,8 +17,8 @@ import {
   formatEquipmentDutch,
   formatTargetDutch,
   formatCategoryDutch,
-} from '../../src/data/exercises';
-import { GROEP_KLEUR } from '../../src/theme/groepKleuren';
+} from '../src/data/exercises';
+import { GROEP_KLEUR } from '../src/theme/groepKleuren';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CUSTOM_KEY = '@wayt_custom_exercises';
@@ -513,6 +514,9 @@ export default function ExercisesTab() {
   return (
     <SafeAreaView style={[s.veilig, { backgroundColor: kleuren.achtergrond }]}>
       {/* Header */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        <TerugKnop label="Profiel" />
+      </View>
       <View style={[s.header, { borderBottomColor: kleuren.kaartRand }]}>
         <View>
           <Text style={[s.headerTitel, { color: kleuren.tekst }]}>Oefeningen</Text>

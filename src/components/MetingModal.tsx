@@ -16,6 +16,8 @@ import { useAuth } from '../context/AuthContext';
 import { bereken1RM } from '../context/LiveWorkoutContext';
 import { berekenVolume, berekenArbeid } from '../utils/physics';
 import { supabase } from '../lib/supabase';
+import { canoniekeId } from '../lib/trainingsHistorie';
+import type { MetingMoment } from '../types';
 import { vandaag } from '../utils/datum';
 
 const KERN_OEFENINGEN = [
@@ -29,6 +31,34 @@ interface MetingModalProps {
   onSluiten: () => void;
 }
 
+type MetingStatus = Record<MetingMoment, Record<string, number>>;
+
+const LEGE_STATUS: MetingStatus = { week0: {}, week6: {} };
+
+export async function haalMetingStatus(userId: string): Promise<MetingStatus> {
+  const { data, error } = await supabase
+    .from('workouts')
+    .select('exercise, weight, reps, meting_moment')
+    .eq('user_id', userId)
+    .eq('is_meting', true);
+  if (error || !data) return LEGE_STATUS;
+  const status: MetingStatus = { week0: {}, week6: {} };
+  for (const rij of data as { exercise: string; weight: number; reps: number; meting_moment: MetingMoment | null }[]) {
+    if (rij.meting_moment !== 'week0' && rij.meting_moment !== 'week6') continue;
+    const id = canoniekeId(rij.exercise);
+    const eenRM = bereken1RM(Number(rij.weight), Number(rij.reps));
+    status[rij.meting_moment][id] = Math.max(status[rij.meting_moment][id] ?? 0, eenRM);
+  }
+  return status;
+}
+
+export function aantalMetingenKlaar(status: MetingStatus): number {
+  return (['week0', 'week6'] as const).reduce(
+    (som, moment) => som + KERN_OEFENINGEN.filter(o => status[moment][o.id] !== undefined).length,
+    0,
+  );
+}
+
 export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) {
   const { kleuren } = useThema();
   const { user } = useAuth();
@@ -38,6 +68,24 @@ export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) 
   const [gewichtStr, setGewichtStr] = useState('');
   const [repsStr, setRepsStr] = useState('');
   const [laden, setLaden] = useState(false);
+  const [status, setStatus] = useState<MetingStatus>(LEGE_STATUS);
+
+  const laadStatus = useCallback(async (kiesStandaard: boolean) => {
+    if (!user?.id) return;
+    const nieuw = await haalMetingStatus(user.id);
+    setStatus(nieuw);
+    if (kiesStandaard) {
+      const week0Klaar = KERN_OEFENINGEN.every(o => nieuw.week0[o.id] !== undefined);
+      const moment: MetingMoment = week0Klaar ? 'week6' : 'week0';
+      setWeek(moment);
+      const open = KERN_OEFENINGEN.find(o => nieuw[moment][o.id] === undefined);
+      setGekozenOefening((open ?? KERN_OEFENINGEN[0]).id);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (zichtbaar) laadStatus(true);
+  }, [zichtbaar, laadStatus]);
 
   const overlayOpacity = useSharedValue(0);
   const sheetTranslateY = useSharedValue(500);
@@ -88,11 +136,22 @@ export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) 
         set_type: 'normaal',
       });
       if (error) throw error;
-      Alert.alert(
-        'Meting opgeslagen!',
-        `Geschatte 1RM: ${berekend1RM} kg\n(${gewicht} kg x ${reps} herhalingen)`,
-        [{ text: 'OK', onPress: () => { resetForm(); sluitModal(); } }]
-      );
+      const nieuw = await haalMetingStatus(user.id);
+      setStatus(nieuw);
+      setGewichtStr('');
+      setRepsStr('');
+      const volgende = KERN_OEFENINGEN.find(o => nieuw[week][o.id] === undefined);
+      const naam = KERN_OEFENINGEN.find(o => o.id === gekozenOefening)?.naam ?? '';
+      if (volgende) {
+        setGekozenOefening(volgende.id);
+        Alert.alert('Meting opgeslagen', `${naam}: geschatte 1RM ${berekend1RM} kg.\nVolgende: ${volgende.naam}.`);
+      } else {
+        Alert.alert(
+          'Meetmoment compleet',
+          `Alle drie de oefeningen voor ${week === 'week0' ? 'week 0' : 'week 6'} zijn gemeten.`,
+          [{ text: 'Klaar', onPress: () => { resetForm(); sluitModal(); } }],
+        );
+      }
     } catch (err) {
       Alert.alert('Opslaan mislukt', (err as Error).message);
     } finally {
@@ -138,7 +197,11 @@ export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) 
               <TouchableOpacity
                 key={val}
                 style={[s.tab, week === val && { backgroundColor: kleuren.accent }]}
-                onPress={() => setWeek(val)}
+                onPress={() => {
+                  setWeek(val);
+                  const open = KERN_OEFENINGEN.find(o => status[val][o.id] === undefined);
+                  setGekozenOefening((open ?? KERN_OEFENINGEN[0]).id);
+                }}
               >
                 <Text style={[s.tabTekst, { color: week === val ? '#FFF' : kleuren.tekstGedimpt }]}>
                   {label}
@@ -158,11 +221,19 @@ export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) 
                   gekozenOefening === oef.id && { borderColor: kleuren.accent, backgroundColor: kleuren.accentGedimpt },
                 ]}
                 onPress={() => setGekozenOefening(oef.id)}
+                accessibilityLabel={`${oef.naam}${status[week][oef.id] !== undefined ? ', al gemeten' : ''}`}
               >
-                <Ionicons name={oef.icoon as any} size={18} color={gekozenOefening === oef.id ? kleuren.accent : kleuren.tekstGedimpt} />
-                <Text style={[s.oefeningTekst, { color: gekozenOefening === oef.id ? kleuren.accentTekst : kleuren.tekstSecundair }]}>
+                <Ionicons
+                  name={status[week][oef.id] !== undefined ? 'checkmark-circle' : oef.icoon as any}
+                  size={18}
+                  color={status[week][oef.id] !== undefined ? kleuren.succes : gekozenOefening === oef.id ? kleuren.accentTekst : kleuren.tekstGedimpt}
+                />
+                <Text style={[s.oefeningTekst, { flex: 1, color: gekozenOefening === oef.id ? kleuren.accentTekst : kleuren.tekstSecundair }]}>
                   {oef.naam}
                 </Text>
+                {status[week][oef.id] !== undefined && (
+                  <Text style={[s.oefeningTekst, { color: kleuren.tekstGedimpt }]}>{status[week][oef.id]} kg</Text>
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -192,6 +263,17 @@ export default function MetingModal({ zichtbaar, onSluiten }: MetingModalProps) 
               />
             </View>
           </View>
+
+          {status[week][gekozenOefening] !== undefined && (
+            <Text style={[s.invoerLabel, { color: kleuren.waarschuwing, marginBottom: 12 }]}>
+              Deze oefening is al gemeten voor dit moment. Een nieuwe meting telt alleen mee als die hoger uitvalt.
+            </Text>
+          )}
+          {reps > 10 && (
+            <Text style={[s.invoerLabel, { color: kleuren.tekstGedimpt, marginBottom: 12 }]}>
+              Epley is het nauwkeurigst bij 10 herhalingen of minder. Kies liever een zwaarder gewicht.
+            </Text>
+          )}
 
           {berekend1RM !== null && (
             <View style={[s.resultaat, { backgroundColor: kleuren.waarschuwing + '18', borderColor: kleuren.waarschuwing + '44' }]}>

@@ -67,14 +67,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="exercises"
+        name="profiel"
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <TabIcoon naam={focused ? 'library' : 'library-outline'} focused={focused} color={color} label="Oefeningen" />
+            <TabIcoon naam={focused ? 'person' : 'person-outline'} focused={focused} color={color} label="Profiel" />
           ),
         }}
       />
-      <Tabs.Screen name="admin" options={{ href: null }} />
     </Tabs>
   );
 }

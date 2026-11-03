@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, SafeAreaView, RefreshControl, TouchableOpacity,
 } from 'react-native';
@@ -12,7 +12,8 @@ import ErrorBanner from '../../src/components/ErrorBanner';
 import { SkeletonStatKaart } from '../../src/components/SkeletonLoader';
 import ExerciseSelector from '../../src/components/ExerciseSelector';
 import StatCard from '../../src/components/ui/StatCard';
-import { bereken1RM } from '../../src/context/LiveWorkoutContext';
+import { groepeerSessies, vatSetsSamen, formatKg } from '../../src/utils/sessies';
+import { formatDatumKort } from '../../src/utils/datum';
 
 const ROM_OEFENINGEN = [
   { naam: 'Bench Press', rom: 0.40, kleur: '#EF4444', icoon: 'barbell-outline' },
@@ -44,15 +45,15 @@ export default function ProgressScreen() {
 
   useEffect(() => { vernieuwen(); }, [vernieuwen]);
 
-  const n = workouts.length;
-  const eersteVol = n > 0 ? parseFloat(String(workouts[0].volume)) : 0;
-  const huidigeVol = n > 0 ? parseFloat(String(workouts[n - 1].volume)) : 0;
-  const huidigeArbeid = n > 0 ? parseFloat(String(workouts[n - 1].work_joules || 0)) : 0;
-  const huidig1RM = n > 0 ? bereken1RM(Number(workouts[n - 1].weight), Number(workouts[n - 1].reps)) : 0;
-  const groei = eersteVol > 0 ? (((huidigeVol - eersteVol) / eersteVol) * 100).toFixed(1) : '0.0';
+  const sessies = useMemo(() => groepeerSessies(workouts), [workouts]);
+  const n = sessies.length;
+  const eerste1RM = n > 0 ? sessies[0].beste1RM : 0;
+  const huidig1RM = n > 0 ? sessies[n - 1].beste1RM : 0;
+  const huidigeArbeid = n > 0 ? sessies[n - 1].joules : 0;
+  const groei = n > 1 && eerste1RM > 0 ? (((huidig1RM - eerste1RM) / eerste1RM) * 100).toFixed(1) : '0.0';
   const groeiGetal = parseFloat(groei);
 
-  const recent = [...workouts].reverse().slice(0, 5);
+  const recent = [...sessies].reverse().slice(0, 5);
 
   return (
     <SafeAreaView style={[stijlen.veilig, { backgroundColor: kleuren.achtergrond }]}>
@@ -95,11 +96,11 @@ export default function ProgressScreen() {
             </>
           ) : (
             <>
-              <StatCard waarde={String(n)} label="Sessies" />
-              <StatCard waarde={`${huidig1RM}`} label="1RM (kg)" kleur={kleuren.waarschuwing} />
+              <StatCard waarde={String(n)} label="Trainingen" />
+              <StatCard waarde={`${huidig1RM}`} label="Gesch. 1RM (kg)" kleur={kleuren.waarschuwing} />
               <StatCard
-                waarde={`${groeiGetal >= 0 ? '+' : ''}${groei}%`}
-                label="Volume groei"
+                waarde={`${groeiGetal >= 0 ? '+' : ''}${groei.replace('.', ',')}%`}
+                label="1RM-groei"
                 kleur={groeiGetal >= 0 ? kleuren.succes : kleuren.fout}
               />
             </>
@@ -109,7 +110,7 @@ export default function ProgressScreen() {
         {!laden && n > 0 && (
           <View style={[stijlen.arbeidKaart, { backgroundColor: kleuren.accentGedimpt, borderColor: kleuren.accent + '55' }]}>
             <View>
-              <Text style={[stijlen.arbeidLabel, { color: kleuren.tekstGedimpt }]}>Arbeid (laatste sessie)</Text>
+              <Text style={[stijlen.arbeidLabel, { color: kleuren.tekstGedimpt }]}>Arbeid (laatste training)</Text>
               <Text style={[stijlen.arbeidWaarde, { color: kleuren.tekstSecundair }]}>{huidigeArbeid.toFixed(0)} J</Text>
             </View>
             <Ionicons name="flash" size={32} color={kleuren.accent} />
@@ -163,7 +164,7 @@ export default function ProgressScreen() {
 
         <View style={[stijlen.lijn, { backgroundColor: kleuren.kaartRand }]} />
 
-        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Recente Sessies</Text>
+        <Text style={[stijlen.sectie, { color: kleuren.accentTekst }]}>Recente trainingen</Text>
         {!laden && recent.length === 0 ? (
           <View style={[stijlen.geenData, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
             <Text style={[stijlen.geenDataTekst, { color: kleuren.tekstGedimpt }]}>
@@ -173,19 +174,16 @@ export default function ProgressScreen() {
         ) : (
           <View style={[stijlen.tabel, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
             <View style={[stijlen.tabelRij, { backgroundColor: kleuren.achtergrondSecundair }]}>
-              {['Datum', 'S×R', 'Gewicht', '1RM'].map((h, i) => (
-                <Text key={h} style={[stijlen.tabelKop, { color: kleuren.accentTekst, flex: i === 0 ? 1.5 : 1 }]}>{h}</Text>
+              {['Datum', 'Sets', '1RM'].map((h, i) => (
+                <Text key={h} style={[stijlen.tabelKop, { color: kleuren.accentTekst, flex: i === 1 ? 2.4 : 1 }]}>{h}</Text>
               ))}
             </View>
-            {recent.map((w, i) => (
-              <View key={w.id} style={[stijlen.tabelRij, { backgroundColor: i % 2 === 0 ? 'transparent' : kleuren.accentGedimpt + '44' }]}>
-                <Text style={[stijlen.tabelCel, { color: kleuren.tekstSecundair, flex: 1.5 }]}>
-                  {new Date(w.date).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })}
-                </Text>
-                <Text style={[stijlen.tabelCel, { color: kleuren.tekst }]}>{w.sets}×{w.reps}</Text>
-                <Text style={[stijlen.tabelCel, { color: kleuren.tekst }]}>{w.weight}kg</Text>
+            {recent.map((sessie, i) => (
+              <View key={sessie.datum} style={[stijlen.tabelRij, { backgroundColor: i % 2 === 0 ? 'transparent' : kleuren.accentGedimpt }]}>
+                <Text style={[stijlen.tabelCel, { color: kleuren.tekstSecundair }]}>{formatDatumKort(sessie.datum)}</Text>
+                <Text style={[stijlen.tabelCel, { color: kleuren.tekst, flex: 2.4 }]}>{vatSetsSamen(sessie.sets)}</Text>
                 <Text style={[stijlen.tabelCel, { color: kleuren.waarschuwing }]}>
-                  {bereken1RM(Number(w.weight), Number(w.reps))} kg
+                  {sessie.beste1RM > 0 ? formatKg(sessie.beste1RM) : '—'}
                 </Text>
               </View>
             ))}
@@ -293,7 +291,7 @@ const stijlen = StyleSheet.create({
   tabel: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 12 },
   tabelRij: { flexDirection: 'row', paddingVertical: 9, paddingHorizontal: 10, alignItems: 'center' },
   tabelKop: { fontFamily: 'Inter_700Bold', fontSize: 11, textTransform: 'uppercase', textAlign: 'center', flex: 1 },
-  tabelCel: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  tabelCel: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   geenData: { padding: 24, borderRadius: 14, alignItems: 'center', borderWidth: 1, marginBottom: 12 },
   geenDataTekst: { textAlign: 'center', fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 22 },
 });

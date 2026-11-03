@@ -14,3 +14,24 @@ export function dagenGeleden(aantal: number): string {
   datum.setDate(datum.getDate() - aantal);
   return lokaleDatum(datum);
 }
+
+const MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+const DAGEN = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+
+function leesDatum(datum: string): Date {
+  const [jaar, maand, dag] = datum.split('-').map(Number);
+  return new Date(jaar, (maand || 1) - 1, dag || 1);
+}
+
+export function formatDatumKort(datum: string): string {
+  const d = leesDatum(datum);
+  return `${d.getDate()} ${MAANDEN[d.getMonth()]}`;
+}
+
+export function formatDatumLang(datum: string): string {
+  const d = leesDatum(datum);
+  if (datum === vandaag()) return 'Vandaag';
+  if (datum === dagenGeleden(1)) return 'Gisteren';
+  const dag = DAGEN[d.getDay()];
+  return `${dag.charAt(0).toUpperCase()}${dag.slice(1)} ${d.getDate()} ${MAANDEN[d.getMonth()]}`;
+}

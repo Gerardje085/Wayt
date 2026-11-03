@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { useThema } from '../../src/context/ThemeContext';
 import { useStatistieken } from '../../src/hooks/useStatistieken';
@@ -118,7 +117,6 @@ function DonutChart({ data, kleuren }: { data: SpiergroepVerdeling[]; kleuren: a
 export default function DashboardScreen() {
   const { user } = useAuth();
   const { kleuren } = useThema();
-  const router = useRouter();
   const { laadStatistieken, data, laden } = useStatistieken(user?.id);
   const [metingZichtbaar, setMetingZichtbaar] = useState(false);
 
@@ -152,13 +150,6 @@ export default function DashboardScreen() {
             >
               <Ionicons name="trophy-outline" size={16} color={kleuren.waarschuwing} />
               <Text style={[s.metingKnopTekst, { color: kleuren.waarschuwing }]}>1RM</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.instellingenKnop, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}
-              onPress={() => router.push('/(tabs)/admin')}
-              accessibilityLabel="Instellingen openen"
-            >
-              <Ionicons name="settings-outline" size={20} color={kleuren.tekstGedimpt} />
             </TouchableOpacity>
           </View>
         </View>

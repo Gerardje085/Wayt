@@ -4,19 +4,20 @@ import {
   TouchableOpacity, Alert, Share, RefreshControl, ActivityIndicator, TextInput, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../src/context/AuthContext';
-import { useThema } from '../../src/context/ThemeContext';
-import { useAlleWorkouts } from '../../src/hooks/useWorkouts';
-import { supabase } from '../../src/lib/supabase';
-import { bereken1RM } from '../../src/context/LiveWorkoutContext';
-import ErrorBanner from '../../src/components/ErrorBanner';
-import StatCard from '../../src/components/ui/StatCard';
-import Badge from '../../src/components/ui/Badge';
-import { getDefaultRestTime, setDefaultRestTime, STANDAARD_RUST_TIJD } from '../../src/lib/settingsStore';
-import { canoniekeId } from '../../src/lib/trainingsHistorie';
-import { findExercise } from '../../src/data/exercises';
-import { vandaag } from '../../src/utils/datum';
-import type { Workout } from '../../src/types';
+import { useAuth } from '../src/context/AuthContext';
+import { useThema } from '../src/context/ThemeContext';
+import { useAlleWorkouts } from '../src/hooks/useWorkouts';
+import { supabase } from '../src/lib/supabase';
+import { bereken1RM } from '../src/context/LiveWorkoutContext';
+import ErrorBanner from '../src/components/ErrorBanner';
+import StatCard from '../src/components/ui/StatCard';
+import TerugKnop from '../src/components/ui/TerugKnop';
+import Badge from '../src/components/ui/Badge';
+import { getDefaultRestTime, setDefaultRestTime, STANDAARD_RUST_TIJD } from '../src/lib/settingsStore';
+import { canoniekeId } from '../src/lib/trainingsHistorie';
+import { findExercise } from '../src/data/exercises';
+import { vandaag } from '../src/utils/datum';
+import type { Workout } from '../src/types';
 
 interface AbVergelijking {
   groepA: number;
@@ -215,6 +216,7 @@ export default function AdminScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={laden || abLaden} onRefresh={() => { haalAllesOp(); if (isOnderzoeker) laadAbVergelijking(); }} tintColor={kleuren.accent} />}
       >
+        <TerugKnop label="Profiel" />
         <Text style={[stijlen.titel, { color: kleuren.tekst }]}>{isOnderzoeker ? 'Instellingen & Onderzoek' : 'Instellingen'}</Text>
         <Text style={[stijlen.subtitel, { color: kleuren.tekstGedimpt }]}>
           {isOnderzoeker ? 'Voorkeuren en PWS-onderzoeksresultaten' : 'Voorkeuren, rusttijd en je account'}
