@@ -5,8 +5,9 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  FlatList, SafeAreaView, Alert
+  FlatList, Alert
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';

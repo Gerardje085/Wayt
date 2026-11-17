@@ -1,4 +1,4 @@
-const ZWAARTEKRACHT = 9.81;
+export const ZWAARTEKRACHT = 9.81;
 
 const BEWEGINGSBAAN: Record<string, number> = {
   // Nieuwe IDs uit 1.324 dataset
@@ -18,11 +18,25 @@ const BEWEGINGSBAAN: Record<string, number> = {
 
 const STANDAARD_BEWEGINGSBAAN = 0.45;
 
+export function getStandaardSlaglengte(oefeningId: string): number {
+  return BEWEGINGSBAAN[oefeningId] ?? STANDAARD_BEWEGINGSBAAN;
+}
+
 export function berekenVolume(sets: number, reps: number, weight: number): number {
   return sets * reps * weight;
 }
 
-export function berekenArbeid(oefeningId: string, reps: number, gewicht: number): number {
-  const rom = BEWEGINGSBAAN[oefeningId] ?? STANDAARD_BEWEGINGSBAAN;
+export function berekenArbeid(
+  oefeningId: string,
+  reps: number,
+  gewicht: number,
+  aangepasteSlaglengte?: number,
+): number {
+  const rom =
+    aangepasteSlaglengte !== undefined &&
+    Number.isFinite(aangepasteSlaglengte) &&
+    aangepasteSlaglengte > 0
+      ? aangepasteSlaglengte
+      : getStandaardSlaglengte(oefeningId);
   return gewicht * ZWAARTEKRACHT * rom * reps;
 }

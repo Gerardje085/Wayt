@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView, RefreshControl, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { useThema } from '../../src/context/ThemeContext';
 import { useVoortgang } from '../../src/hooks/useWorkouts';
+import { groepeerNaarSessies } from '../../src/utils/sessieGroepering';
 import { OEFENINGEN_DB, findExercise } from '../../src/data/exercises';
 import ProgressChart, { type GrafiekModus } from '../../src/components/ProgressChart';
 import ErrorBanner from '../../src/components/ErrorBanner';
 import { SkeletonStatKaart } from '../../src/components/SkeletonLoader';
 import ExerciseSelector from '../../src/components/ExerciseSelector';
 import StatCard from '../../src/components/ui/StatCard';
-import { bereken1RM } from '../../src/context/LiveWorkoutContext';
 
 const ROM_OEFENINGEN = [
   { naam: 'Bench Press', rom: 0.40, kleur: '#EF4444', icoon: 'barbell-outline' },
@@ -44,15 +45,16 @@ export default function ProgressScreen() {
 
   useEffect(() => { vernieuwen(); }, [vernieuwen]);
 
-  const n = workouts.length;
-  const eersteVol = n > 0 ? parseFloat(String(workouts[0].volume)) : 0;
-  const huidigeVol = n > 0 ? parseFloat(String(workouts[n - 1].volume)) : 0;
-  const huidigeArbeid = n > 0 ? parseFloat(String(workouts[n - 1].work_joules || 0)) : 0;
-  const huidig1RM = n > 0 ? bereken1RM(Number(workouts[n - 1].weight), Number(workouts[n - 1].reps)) : 0;
+  const sessies = React.useMemo(() => groepeerNaarSessies(workouts), [workouts]);
+  const n = sessies.length;
+  const eersteVol = n > 0 ? sessies[0].totaalVolume : 0;
+  const huidigeVol = n > 0 ? sessies[n - 1].totaalVolume : 0;
+  const huidigeArbeid = n > 0 ? sessies[n - 1].totaalArbeid : 0;
+  const huidig1RM = n > 0 ? sessies[n - 1].beste1RM : 0;
   const groei = eersteVol > 0 ? (((huidigeVol - eersteVol) / eersteVol) * 100).toFixed(1) : '0.0';
   const groeiGetal = parseFloat(groei);
 
-  const recent = [...workouts].reverse().slice(0, 5);
+  const recent = [...sessies].reverse().slice(0, 5);
 
   return (
     <SafeAreaView style={[stijlen.veilig, { backgroundColor: kleuren.achtergrond }]}>
@@ -177,15 +179,15 @@ export default function ProgressScreen() {
                 <Text key={h} style={[stijlen.tabelKop, { color: kleuren.accent, flex: i === 0 ? 1.5 : 1 }]}>{h}</Text>
               ))}
             </View>
-            {recent.map((w, i) => (
-              <View key={w.id} style={[stijlen.tabelRij, { backgroundColor: i % 2 === 0 ? 'transparent' : kleuren.accentGedimpt + '44' }]}>
+            {recent.map((ses, i) => (
+              <View key={ses.sleutel} style={[stijlen.tabelRij, { backgroundColor: i % 2 === 0 ? 'transparent' : kleuren.accentGedimpt + '44' }]}>
                 <Text style={[stijlen.tabelCel, { color: kleuren.tekstSecundair, flex: 1.5 }]}>
-                  {new Date(w.date).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })}
+                  {new Date(ses.datum).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })}
                 </Text>
-                <Text style={[stijlen.tabelCel, { color: kleuren.tekst }]}>{w.sets}×{w.reps}</Text>
-                <Text style={[stijlen.tabelCel, { color: kleuren.tekst }]}>{w.weight}kg</Text>
+                <Text style={[stijlen.tabelCel, { color: kleuren.tekst }]}>{ses.aantalWerkSets}×{ses.topReps}</Text>
+                <Text style={[stijlen.tabelCel, { color: kleuren.tekst }]}>{ses.topGewicht}kg</Text>
                 <Text style={[stijlen.tabelCel, { color: kleuren.waarschuwing }]}>
-                  {bereken1RM(Number(w.weight), Number(w.reps))} kg
+                  {ses.beste1RM} kg
                 </Text>
               </View>
             ))}

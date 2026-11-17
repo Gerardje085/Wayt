@@ -1,16 +1,16 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Platform, View, Text, StyleSheet } from 'react-native';
+import { Platform, View, Text, StyleSheet, type ColorValue } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThema } from '../../src/context/ThemeContext';
 import { useLiveWorkout } from '../../src/context/LiveWorkoutContext';
 
-function TabIcoon({ naam, focused, color, label }: {
-  naam: string; focused: boolean; color: string; label: string;
+function TabIcoon({ naam, color, label }: {
+  naam: string; color: ColorValue; label: string;
 }) {
   return (
     <View style={stijlen.tabItem}>
-      <Ionicons name={naam as any} size={22} color={color} />
+      <Ionicons name={naam as any} size={22} color={color as any} />
       <Text style={[stijlen.tabLabel, { color }]} numberOfLines={1}>{label}</Text>
     </View>
   );
@@ -26,7 +26,7 @@ export default function TabLayout() {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: kleuren.kaart,
+          backgroundColor: kleuren.achtergrondSecundair,
           borderTopColor: kleuren.kaartRand,
           borderTopWidth: 1,
           height: Platform.OS === 'ios' ? 82 : 62,
@@ -38,19 +38,11 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="dashboard"
-        options={{
-          tabBarIcon: ({ focused, color }) => (
-            <TabIcoon naam={focused ? 'home' : 'home-outline'} focused={focused} color={color} label="Home" />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="workout"
         options={{
           tabBarIcon: ({ focused, color }) => (
             <View>
-              <TabIcoon naam={focused ? 'barbell' : 'barbell-outline'} focused={focused} color={color} label="Trainen" />
+              <TabIcoon naam={focused ? 'barbell' : 'barbell-outline'} color={color} label="Trainen" />
               {isActief && (
                 <View style={[stijlen.actieveBadge, { backgroundColor: kleuren.succes }]} />
               )}
@@ -59,28 +51,33 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="progress"
+        name="exercises"
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <TabIcoon naam={focused ? 'stats-chart' : 'stats-chart-outline'} focused={focused} color={color} label="Voortgang" />
+            <TabIcoon naam={focused ? 'library' : 'library-outline'} color={color} label="Oefeningen" />
           ),
         }}
       />
       <Tabs.Screen
-        name="exercises"
+        name="dashboard"
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <TabIcoon naam={focused ? 'library' : 'library-outline'} focused={focused} color={color} label="Oefeningen" />
+            <TabIcoon naam={focused ? 'person' : 'person-outline'} color={color} label="Profiel" />
           ),
         }}
       />
-      <Tabs.Screen name="admin" options={{ href: null }} />
+      <Tabs.Screen
+        name="progress"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
 
 const stijlen = StyleSheet.create({
-  tabItem: { alignItems: 'center', gap: 2, minWidth: 60 },
+  tabItem: { alignItems: 'center', gap: 2, minWidth: 68 },
   tabLabel: { fontSize: 10, fontFamily: 'Inter_600SemiBold', letterSpacing: -0.2 },
   actieveBadge: {
     position: 'absolute', top: -2, right: -6,

@@ -5,7 +5,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DEFAULT_REST_KEY = '@wayt_default_rest_time';
-export const STANDAARD_RUST_TIJD = 90; // Standaard 90 seconden
+export const STANDAARD_RUST_TIJD = 120; // Standaard 120 seconden (2 minuten)
 
 export async function getDefaultRestTime(): Promise<number> {
   try {

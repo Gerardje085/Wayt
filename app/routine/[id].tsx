@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { useThema } from '../../src/context/ThemeContext';
 import { getRoutines, Routine } from '../../src/lib/routineStore';
 import { findExercise, getMediaUrl } from '../../src/data/exercises';
+import { useLiveWorkout, type LiveOefening } from '../../src/context/LiveWorkoutContext';
 import RoutineBuilder from '../../src/components/RoutineBuilder';
 
 export default function RoutineDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { kleuren } = useThema();
+  const { startWorkout } = useLiveWorkout();
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [builderZichtbaar, setBuilderZichtbaar] = useState(false);
 
@@ -34,16 +38,29 @@ export default function RoutineDetailsScreen() {
   }
 
   const startRoutine = () => {
-    router.push({
-      pathname: '/(tabs)/dashboard',
-      params: { routineId: routine.id }
-    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const liveOef: LiveOefening[] = routine.oefeningen.map((o) => ({
+      id: o.id,
+      rustTijd: o.rustTijd && o.rustTijd > 0 ? o.rustTijd : undefined,
+      sets: o.sets.map(s => ({
+        ...s,
+        type: 'normaal' as const,
+        completed: false,
+      })),
+    }));
+
+    startWorkout(routine.naam, routine.id, liveOef);
+    router.push('/workout-session');
   };
 
   return (
     <SafeAreaView style={[stijlen.container, { backgroundColor: kleuren.achtergrond }]}>
       <View style={[stijlen.header, { borderBottomColor: kleuren.kaartRand }]}>
-        <TouchableOpacity style={stijlen.terugKnop} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={stijlen.terugKnop}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/workout'))}
+        >
           <Ionicons name="arrow-back" size={24} color={kleuren.tekstSecundair} />
         </TouchableOpacity>
         <Text style={[stijlen.titel, { color: kleuren.tekstSecundair }]}>{routine.naam}</Text>
@@ -203,7 +220,7 @@ const stijlen = StyleSheet.create({
   startContainer: {
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#7C3AED',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,

@@ -1,19 +1,20 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThema } from '../../src/context/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { useVoortgang } from '../../src/hooks/useWorkouts';
+import { groepeerNaarSessies } from '../../src/utils/sessieGroepering';
 import {
   findExercise,
   formatEquipmentDutch,
   formatTargetDutch,
   formatCategoryDutch,
 } from '../../src/data/exercises';
-import { bereken1RM } from '../../src/context/LiveWorkoutContext';
 import ProgressChart from '../../src/components/ProgressChart';
 import { GROEP_KLEUR } from '../../src/theme/groepKleuren';
 import ExerciseGuideView from '../../src/components/ExerciseGuideView';
@@ -35,17 +36,22 @@ export default function OefeningDetail() {
     if (id) haalVoortgangOp(id);
   }, [id]);
 
-  const pr = workouts.reduce((best, w) => {
-    const eenRM = bereken1RM(parseFloat(String(w.weight)) || 0, parseInt(String(w.reps)) || 0);
-    return eenRM > best ? eenRM : best;
-  }, 0);
+  const sessies = useMemo(() => groepeerNaarSessies(workouts), [workouts]);
 
-  const recent = [...workouts].reverse().slice(0, 10);
+  const pr = useMemo(
+    () => sessies.reduce((best, ses) => (ses.beste1RM > best ? ses.beste1RM : best), 0),
+    [sessies]
+  );
+
+  const recent = useMemo(() => [...sessies].reverse().slice(0, 10), [sessies]);
 
   return (
     <SafeAreaView style={[s.veilig, { backgroundColor: kleuren.achtergrond }]}>
       <View style={[s.header, { borderBottomColor: kleuren.kaartRand }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.terugKnop}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/exercises'))}
+          style={s.terugKnop}
+        >
           <Ionicons name="arrow-back" size={22} color={kleuren.tekst} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -123,7 +129,7 @@ export default function OefeningDetail() {
               <View style={[s.statKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
                 <Text style={[s.statLabel, { color: kleuren.tekstGedimpt }]}>GELOGDE SESSIES</Text>
                 <Text style={[s.statWaarde, { color: kleuren.tekst }]}>
-                  {workouts.length}
+                  {sessies.length}
                 </Text>
               </View>
             </View>
@@ -139,24 +145,33 @@ export default function OefeningDetail() {
               {recent.length === 0 ? (
                 <Text style={[s.leegTekst, { color: kleuren.tekstGedimpt }]}>Nog geen workouts gelogd voor deze oefening.</Text>
               ) : (
-                recent.map((w, index) => (
-                  <View key={w.id || index} style={[s.geschiedenisRij, { borderBottomColor: kleuren.kaartRand }]}>
-                    <View>
-                      <Text style={[s.datumTekst, { color: kleuren.tekst }]}>
-                        {new Date(w.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
-                      </Text>
-                      <Text style={[s.subDatum, { color: kleuren.tekstGedimpt }]}>
-                        {w.sets} sets x {w.reps} reps
-                      </Text>
+                recent.map((ses, index) => {
+                  const setsOverzicht = ses.sets.length > 1
+                    ? ses.sets
+                        .map(st => `${st.set_type === 'warmup' ? 'W ' : ''}${st.weight}×${st.reps}`)
+                        .join(' · ')
+                    : `${ses.aantalWerkSets} ${ses.aantalWerkSets === 1 ? 'set' : 'sets'} × ${ses.topReps} reps`;
+                  return (
+                    <View key={ses.sleutel || index} style={[s.geschiedenisRij, { borderBottomColor: kleuren.kaartRand }]}>
+                      <View style={{ flex: 1, marginRight: 12 }}>
+                        <Text style={[s.datumTekst, { color: kleuren.tekst }]}>
+                          {new Date(ses.datum).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                        </Text>
+                        <Text style={[s.subDatum, { color: kleuren.tekstGedimpt }]}>
+                          {setsOverzicht}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={[s.gewichtTekst, { color: accentKleur }]}>
+                          {ses.topGewicht} kg × {ses.topReps}
+                        </Text>
+                        <Text style={[s.subDatum, { color: kleuren.tekstGedimpt }]}>
+                          Volume: {ses.totaalVolume ? `${ses.totaalVolume} kg` : '—'}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[s.gewichtTekst, { color: accentKleur }]}>{w.weight} kg</Text>
-                      <Text style={[s.subDatum, { color: kleuren.tekstGedimpt }]}>
-                        Volume: {w.volume ? `${w.volume} kg` : '—'}
-                      </Text>
-                    </View>
-                  </View>
-                ))
+                  );
+                })
               )}
             </View>
           </View>

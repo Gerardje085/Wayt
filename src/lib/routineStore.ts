@@ -24,10 +24,33 @@ export interface Routine {
 
 const STORAGE_KEY = '@wayt_routines';
 
+function maakStandaardOnderzoeksRoutine(): Routine {
+  return {
+    id: 'onderzoeksroutine-volledig',
+    naam: 'Onderzoeksroutine (Volledig)',
+    oefeningen: ['0025', '0150', '0585'].map((oefId) => ({
+      id: oefId,
+      sets: Array.from({ length: 3 }).map((_, idx) => ({
+        id: `${oefId}-set-${idx + 1}`,
+        reps: 10,
+        gewicht: 0,
+      })),
+      notities: '',
+      rustTijd: 120,
+    })),
+  };
+}
+
 export async function getRoutines(): Promise<Routine[]> {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEY);
     let all: any[] = data ? JSON.parse(data) : [];
+
+    if (all.length === 0) {
+      const standaard = maakStandaardOnderzoeksRoutine();
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([standaard]));
+      return [standaard];
+    }
     
     // Auto-migrate oude routines (waarbij 'sets' een nummer is) naar de nieuwe array structuur
     all = all.map(routine => ({

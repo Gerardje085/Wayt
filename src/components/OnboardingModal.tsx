@@ -25,7 +25,7 @@ export default function OnboardingModal() {
   const sheetTranslateY = useSharedValue(500);
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || profile.role === 'admin') return;
     AsyncStorage.getItem(STORAGE_KEY).then(waarde => {
       if (!waarde) {
         setIsActief(true);
@@ -53,7 +53,7 @@ export default function OnboardingModal() {
     transform: [{ translateY: sheetTranslateY.value }],
   }));
 
-  if (!isActief || !profile) return null;
+  if (!isActief || !profile || profile.role === 'admin') return null;
 
   const isGroepA = profile.group_type === 'app';
 

@@ -30,7 +30,7 @@ export default function HerstelHeatmap({ userId }: HerstelHeatmapProps) {
 
     const { data } = await supabase
       .from('workouts')
-      .select('exercise, sets, created_at')
+      .select('*')
       .eq('user_id', userId)
       .gte('created_at', v72u);
 
@@ -40,6 +40,7 @@ export default function HerstelHeatmap({ userId }: HerstelHeatmapProps) {
     const setsPerGroep48: Record<string, number> = {};
 
     for (const row of data) {
+      if (row.set_type === 'warmup') continue;
       const oef = findExercise(row.exercise);
       if (!oef) continue;
       const sets = Number(row.sets) || 1;

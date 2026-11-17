@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Alert, Modal, Pressable, SafeAreaView, Image,
+  TextInput, Alert, Modal, Pressable, Image, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   FadeIn, FadeOut, SlideInDown, useSharedValue, useAnimatedStyle, withTiming, runOnJS, Easing
 } from 'react-native-reanimated';
@@ -15,14 +16,18 @@ import {
   useLiveWorkout, formatTijd, bereken1RM,
   type LiveSet, type LiveOefening, type SetType,
 } from '../src/context/LiveWorkoutContext';
-import { useOpslaanWorkout } from '../src/hooks/useWorkouts';
+import { useOpslaanWorkout, useVorigeSessie } from '../src/hooks/useWorkouts';
 import { OEFENINGEN_DB, findExercise, getMediaUrl } from '../src/data/exercises';
 import ExerciseSelector from '../src/components/ExerciseSelector';
 import { berekenVolume, berekenArbeid } from '../src/utils/physics';
+import { genereerUuid } from '../src/utils/sessieGroepering';
 import WarmupModal from '../src/components/WarmupModal';
 import PrCelebratie from '../src/components/PrCelebratie';
 import WorkoutSamenvatting, { type WorkoutSamenvattingData } from '../src/components/WorkoutSamenvatting';
 import ExerciseGuideModal from '../src/components/ExerciseGuideModal';
+import { getDefaultRestTime } from '../src/lib/settingsStore';
+import { getRoutines, saveRoutine } from '../src/lib/routineStore';
+import type { NieuweWorkout } from '../src/types';
 import { supabase } from '../src/lib/supabase';
 
 function setTypeConfig(kleuren: any): Record<SetType, { label: string; kleur: string }> {
@@ -35,10 +40,11 @@ function setTypeConfig(kleuren: any): Record<SetType, { label: string; kleur: st
 }
 
 function SetTypeModal({
-  zichtbaar, onSluiten, onKies, huidigType, kleuren
+  zichtbaar, onSluiten, onKies, onVerwijder, huidigType, kleuren
 }: {
   zichtbaar: boolean; onSluiten: () => void;
-  onKies: (t: SetType) => void; huidigType: SetType; kleuren: any;
+  onKies: (t: SetType) => void; onVerwijder: () => void;
+  huidigType: SetType; kleuren: any;
 }) {
   const [isActief, setIsActief] = useState(false);
   const overlayOpacity = useSharedValue(0);
@@ -52,18 +58,30 @@ function SetTypeModal({
     }
   }, [zichtbaar]);
 
-  const sluitModal = useCallback((gekozenType?: SetType) => {
+  const sluitModal = useCallback((actie?: { type: 'kies'; value: SetType } | { type: 'verwijder' }) => {
+    if (Platform.OS === 'web') {
+      setIsActief(false);
+      if (actie?.type === 'kies') {
+        onKies(actie.value);
+      } else if (actie?.type === 'verwijder') {
+        onVerwijder();
+      }
+      onSluiten();
+      return;
+    }
     overlayOpacity.value = withTiming(0, { duration: 180 });
     sheetTranslateY.value = withTiming(400, { duration: 220, easing: Easing.in(Easing.cubic) }, (finished) => {
       if (finished) {
         runOnJS(setIsActief)(false);
-        if (gekozenType) {
-          runOnJS(onKies)(gekozenType);
+        if (actie?.type === 'kies') {
+          runOnJS(onKies)(actie.value);
+        } else if (actie?.type === 'verwijder') {
+          runOnJS(onVerwijder)();
         }
         runOnJS(onSluiten)();
       }
     });
-  }, [onKies, onSluiten]);
+  }, [onKies, onVerwijder, onSluiten]);
 
   const overlayAnimStijl = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
@@ -91,7 +109,7 @@ function SetTypeModal({
             <TouchableOpacity
               key={t}
               style={[stm.optie, { borderColor: kleuren.kaartRand }, huidigType === t && { backgroundColor: kleuren.accent + '22' }]}
-              onPress={() => sluitModal(t)}
+              onPress={() => sluitModal({ type: 'kies', value: t })}
             >
               {cfg[t].label ? (
                 <View style={[stm.typeBadge, { backgroundColor: cfg[t].kleur }]}>
@@ -106,6 +124,14 @@ function SetTypeModal({
               {huidigType === t && <Ionicons name="checkmark" size={18} color={kleuren.accent} />}
             </TouchableOpacity>
           ))}
+
+          <TouchableOpacity
+            style={[stm.verwijderKnop, { backgroundColor: kleuren.fout + '15', borderColor: kleuren.fout + '44' }]}
+            onPress={() => sluitModal({ type: 'verwijder' })}
+          >
+            <Ionicons name="trash-outline" size={18} color={kleuren.fout} />
+            <Text style={[stm.verwijderTekst, { color: kleuren.fout }]}>Set verwijderen</Text>
+          </TouchableOpacity>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -120,9 +146,136 @@ const stm = StyleSheet.create({
   optieNaam: { flex: 1, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   typeBadge: { width: 28, height: 28, borderRadius: 7, justifyContent: 'center', alignItems: 'center' },
   typeBadgeTekst: { color: '#FFF', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  verwijderKnop: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: 14, borderRadius: 12, borderWidth: 1, marginTop: 6,
+  },
+  verwijderTekst: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  annuleerSheetKnop: {
+    alignItems: 'center', justifyContent: 'center',
+    padding: 14, borderRadius: 12, borderWidth: 1, marginTop: 8,
+  },
+  annuleerSheetTekst: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
 });
 
-const QUICK_ADD_STAPPEN = [1.25, 2.5, 5];
+function OefeningOptiesModal({
+  zichtbaar,
+  oefeningNaam,
+  toonWarmup,
+  onSluiten,
+  onUitleg,
+  onWarmup,
+  onVerwijder,
+  kleuren,
+}: {
+  zichtbaar: boolean;
+  oefeningNaam: string;
+  toonWarmup: boolean;
+  onSluiten: () => void;
+  onUitleg: () => void;
+  onWarmup: () => void;
+  onVerwijder: () => void;
+  kleuren: any;
+}) {
+  const [isActief, setIsActief] = useState(false);
+  const overlayOpacity = useSharedValue(0);
+  const sheetTranslateY = useSharedValue(400);
+
+  useEffect(() => {
+    if (zichtbaar) {
+      setIsActief(true);
+      overlayOpacity.value = withTiming(1, { duration: 200 });
+      sheetTranslateY.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
+    }
+  }, [zichtbaar]);
+
+  const sluitModal = useCallback((actie?: 'uitleg' | 'warmup' | 'verwijder') => {
+    const voerActieUit = () => {
+      if (actie === 'uitleg') onUitleg();
+      else if (actie === 'warmup') onWarmup();
+      else if (actie === 'verwijder') onVerwijder();
+      onSluiten();
+    };
+
+    if (Platform.OS === 'web') {
+      setIsActief(false);
+      voerActieUit();
+      return;
+    }
+
+    overlayOpacity.value = withTiming(0, { duration: 180 });
+    sheetTranslateY.value = withTiming(400, { duration: 220, easing: Easing.in(Easing.cubic) }, (finished) => {
+      if (finished) {
+        runOnJS(setIsActief)(false);
+        runOnJS(voerActieUit)();
+      }
+    });
+  }, [onUitleg, onWarmup, onVerwijder, onSluiten]);
+
+  const overlayAnimStijl = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
+  }));
+
+  const sheetAnimStijl = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetTranslateY.value }],
+  }));
+
+  if (!isActief) return null;
+
+  return (
+    <Modal visible={isActief} transparent animationType="none" onRequestClose={() => sluitModal()}>
+      <Animated.View style={[stm.overlay, overlayAnimStijl]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => sluitModal()} />
+        <Animated.View style={[stm.sheet, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }, sheetAnimStijl]}>
+          <Text style={[stm.titel, { color: kleuren.tekst }]} numberOfLines={1}>{oefeningNaam}</Text>
+
+          <TouchableOpacity
+            style={[stm.optie, { borderColor: kleuren.kaartRand, backgroundColor: kleuren.achtergrondSecundair }]}
+            onPress={() => sluitModal('uitleg')}
+            activeOpacity={0.75}
+          >
+            <View style={[stm.typeBadge, { backgroundColor: kleuren.accent + '22' }]}>
+              <Ionicons name="book-outline" size={16} color={kleuren.accent} />
+            </View>
+            <Text style={[stm.optieNaam, { color: kleuren.tekst }]}>Oefening uitleg</Text>
+            <Ionicons name="chevron-forward" size={16} color={kleuren.tekstGedimpt} />
+          </TouchableOpacity>
+
+          {toonWarmup && (
+            <TouchableOpacity
+              style={[stm.optie, { borderColor: kleuren.kaartRand, backgroundColor: kleuren.achtergrondSecundair }]}
+              onPress={() => sluitModal('warmup')}
+              activeOpacity={0.75}
+            >
+              <View style={[stm.typeBadge, { backgroundColor: kleuren.warmup + '22' }]}>
+                <Ionicons name="flame-outline" size={16} color={kleuren.warmup} />
+              </View>
+              <Text style={[stm.optieNaam, { color: kleuren.tekst }]}>Opwarmsets berekenen</Text>
+              <Ionicons name="chevron-forward" size={16} color={kleuren.tekstGedimpt} />
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[stm.verwijderKnop, { backgroundColor: kleuren.fout + '15', borderColor: kleuren.fout + '44' }]}
+            onPress={() => sluitModal('verwijder')}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="trash-outline" size={18} color={kleuren.fout} />
+            <Text style={[stm.verwijderTekst, { color: kleuren.fout }]}>Oefening verwijderen</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[stm.annuleerSheetKnop, { borderColor: kleuren.kaartRand, backgroundColor: kleuren.achtergrond }]}
+            onPress={() => sluitModal()}
+            activeOpacity={0.75}
+          >
+            <Text style={[stm.annuleerSheetTekst, { color: kleuren.tekstGedimpt }]}>Annuleren</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+  );
+}
 
 interface PrState {
   zichtbaar: boolean;
@@ -131,29 +284,59 @@ interface PrState {
 }
 
 function SetRij({
-  set, index, oefeningId, toonGewicht, vorige, kleuren, bestaandePR, onNieuwPR,
+  set, index, oefeningId, toonGewicht, vorige, kleuren, bestaandePR, onNieuwPR, rustSeconden,
 }: {
   set: LiveSet; index: number; oefeningId: string;
   toonGewicht: boolean; vorige: { reps: number; gewicht: number } | null | undefined;
   kleuren: any; bestaandePR: number; onNieuwPR: (eenRM: number) => void;
+  rustSeconden: number;
 }) {
-  const { toggleSet, updateSet, setSetType, startRustTimer } = useLiveWorkout();
+  const { toggleSet, updateSet, setSetType, removeSet, startRustTimer } = useLiveWorkout();
   const [typeModal, setTypeModal] = useState(false);
-  const [gewichtStr, setGewichtStr] = useState(String(set.gewicht || ''));
-  const [repsStr, setRepsStr] = useState(String(set.reps || ''));
-  const [quickAddZicht, setQuickAddZicht] = useState(false);
+  const [gewichtStr, setGewichtStr] = useState(set.gewicht > 0 ? String(set.gewicht) : '');
+  const [repsStr, setRepsStr] = useState(set.reps > 0 ? String(set.reps) : '');
   const isCompleted = set.completed;
   const cfg = setTypeConfig(kleuren);
 
+  useEffect(() => {
+    if (!isCompleted && set.gewicht > 0) {
+      setGewichtStr(String(set.gewicht));
+    }
+  }, [set.gewicht, isCompleted]);
+
+  useEffect(() => {
+    if (!isCompleted && set.reps > 0) {
+      setRepsStr(String(set.reps));
+    }
+  }, [set.reps, isCompleted]);
+
+  const fallbackGewicht = toonGewicht ? (vorige?.gewicht ?? 0) : 0;
+  const fallbackReps = vorige?.reps ?? 0;
+
   const handleCheck = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const gewicht = parseFloat(gewichtStr.replace(',', '.')) || 0;
-    const reps = parseInt(repsStr) || 0;
+    const rawGewicht = gewichtStr.trim();
+    const rawReps = repsStr.trim();
+
+    const gewicht = rawGewicht === ''
+      ? fallbackGewicht
+      : (parseFloat(rawGewicht.replace(',', '.')) || 0);
+    const reps = rawReps === ''
+      ? fallbackReps
+      : (parseInt(rawReps, 10) || 0);
+
+    if (rawGewicht === '' && fallbackGewicht > 0) {
+      setGewichtStr(String(fallbackGewicht));
+    }
+    if (rawReps === '' && fallbackReps > 0) {
+      setRepsStr(String(fallbackReps));
+    }
+
     updateSet(oefeningId, set.id, 'gewicht', gewicht);
     updateSet(oefeningId, set.id, 'reps', reps);
     toggleSet(oefeningId, set.id);
     if (!isCompleted) {
-      startRustTimer(90);
+      startRustTimer(rustSeconden);
       if (gewicht > 0 && reps > 0) {
         const nieuwEenRM = bereken1RM(gewicht, reps);
         if (nieuwEenRM > bestaandePR) {
@@ -163,237 +346,255 @@ function SetRij({
     }
   };
 
-  const pasGewichtAan = (delta: number) => {
-    const huidig = parseFloat(gewichtStr.replace(',', '.')) || 0;
-    const nieuw = Math.max(0, Math.round((huidig + delta) * 4) / 4);
-    const tekst = Number.isInteger(nieuw) ? String(nieuw) : nieuw.toFixed(2).replace(/\.?0+$/, '');
-    setGewichtStr(tekst);
-    updateSet(oefeningId, set.id, 'gewicht', nieuw);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const bgKleur = isCompleted ? kleuren.succes + '18' : kleuren.kaart;
+  const bgKleur = isCompleted
+    ? kleuren.succes + '22'
+    : index % 2 === 1
+      ? kleuren.achtergrondSecundair
+      : 'transparent';
   const typeLabel = cfg[set.type].label || String(index + 1);
   const typeKleur = cfg[set.type].kleur;
 
   return (
-    <View>
-      <Animated.View entering={FadeIn.duration(200)} style={[sr.rij, { backgroundColor: bgKleur, borderColor: kleuren.kaartRand }]}>
-        <TouchableOpacity onLongPress={() => setTypeModal(true)} style={sr.nummerKnop}>
-          <View style={[sr.nummerBadge, {
-            backgroundColor: isCompleted ? kleuren.succes + '33' : typeKleur + '22',
-            borderColor: isCompleted ? kleuren.succes : typeKleur + '66',
-          }]}>
-            {isCompleted ? (
-              <Ionicons name="checkmark" size={15} color={kleuren.succes} />
-            ) : (
-              <Text style={[sr.nummerTekst, { color: typeKleur }]}>
-                {typeLabel}
-              </Text>
-            )}
-          </View>
-        </TouchableOpacity>
+    <View style={[sr.rij, { backgroundColor: bgKleur }]}>
+      <TouchableOpacity onPress={() => setTypeModal(true)} style={sr.nummerKnop} activeOpacity={0.7}>
+        <View style={[sr.nummerBadge, {
+          backgroundColor: isCompleted ? kleuren.succes + '33' : typeKleur + '22',
+        }]}>
+          <Text style={[sr.nummerTekst, { color: isCompleted ? kleuren.succes : typeKleur }]}>
+            {typeLabel}
+          </Text>
+        </View>
+      </TouchableOpacity>
 
-        <Text style={[sr.vorige, { color: kleuren.tekstGedimpt }]} numberOfLines={1}>
-          {vorige ? `${vorige.gewicht}×${vorige.reps}` : '—'}
-        </Text>
+      <Text style={[sr.vorige, { color: kleuren.tekstGedimpt }]} numberOfLines={1}>
+        {vorige ? `${vorige.gewicht}×${vorige.reps}` : '—'}
+      </Text>
 
-        {toonGewicht && (
-          <TouchableOpacity
-            style={{ flex: 1.2 }}
-            onFocus={() => setQuickAddZicht(true)}
-            onBlur={() => setQuickAddZicht(false)}
-            onPress={() => !isCompleted && setQuickAddZicht(v => !v)}
-            activeOpacity={1}
-          >
-            <TextInput
-              style={[sr.input, { color: kleuren.tekst, backgroundColor: isCompleted ? 'transparent' : kleuren.achtergrond }]}
-              value={gewichtStr}
-              onChangeText={setGewichtStr}
-              keyboardType="decimal-pad"
-              placeholder={vorige ? String(vorige.gewicht) : '0'}
-              placeholderTextColor={kleuren.tekstGedimpt}
-              editable={!isCompleted}
-              selectTextOnFocus
-              onFocus={() => setQuickAddZicht(true)}
-            />
-          </TouchableOpacity>
-        )}
-
+      {toonGewicht && (
         <TextInput
-          style={[sr.input, { color: kleuren.tekst, backgroundColor: isCompleted ? 'transparent' : kleuren.achtergrond }]}
-          value={repsStr}
-          onChangeText={setRepsStr}
-          keyboardType="number-pad"
-          placeholder={vorige ? String(vorige.reps) : '0'}
+          style={[sr.input, { color: kleuren.tekst, backgroundColor: isCompleted ? 'transparent' : kleuren.kaart }]}
+          value={gewichtStr}
+          onChangeText={setGewichtStr}
+          keyboardType="decimal-pad"
+          placeholder={fallbackGewicht > 0 ? String(fallbackGewicht) : '0'}
           placeholderTextColor={kleuren.tekstGedimpt}
           editable={!isCompleted}
           selectTextOnFocus
         />
-
-        <TouchableOpacity onPress={handleCheck} style={[sr.checkKnop, { backgroundColor: isCompleted ? kleuren.succes : kleuren.achtergrond, borderColor: isCompleted ? kleuren.succes : kleuren.kaartRand }]}>
-          <Ionicons name="checkmark" size={22} color={isCompleted ? '#FFF' : kleuren.tekstGedimpt} />
-        </TouchableOpacity>
-
-        <SetTypeModal
-          zichtbaar={typeModal}
-          onSluiten={() => setTypeModal(false)}
-          onKies={(t) => setSetType(oefeningId, set.id, t)}
-          huidigType={set.type}
-          kleuren={kleuren}
-        />
-      </Animated.View>
-
-      {toonGewicht && quickAddZicht && !isCompleted && (
-        <Animated.View entering={FadeIn.duration(150)} style={[sr.quickAddRij, { backgroundColor: kleuren.achtergrondSecundair }]}>
-          {QUICK_ADD_STAPPEN.map(stap => (
-            <TouchableOpacity
-              key={`min-${stap}`}
-              style={[sr.quickKnop, { borderColor: kleuren.kaartRand }]}
-              onPress={() => pasGewichtAan(-stap)}
-            >
-              <Text style={[sr.quickTekst, { color: kleuren.fout }]}>-{stap}</Text>
-            </TouchableOpacity>
-          ))}
-          {[...QUICK_ADD_STAPPEN].reverse().map(stap => (
-            <TouchableOpacity
-              key={`plus-${stap}`}
-              style={[sr.quickKnop, { borderColor: kleuren.kaartRand }]}
-              onPress={() => pasGewichtAan(stap)}
-            >
-              <Text style={[sr.quickTekst, { color: kleuren.succes }]}>+{stap}</Text>
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
       )}
+
+      <TextInput
+        style={[sr.input, { color: kleuren.tekst, backgroundColor: isCompleted ? 'transparent' : kleuren.kaart }]}
+        value={repsStr}
+        onChangeText={setRepsStr}
+        keyboardType="number-pad"
+        placeholder={fallbackReps > 0 ? String(fallbackReps) : '0'}
+        placeholderTextColor={kleuren.tekstGedimpt}
+        editable={!isCompleted}
+        selectTextOnFocus
+      />
+
+      <TouchableOpacity
+        onPress={handleCheck}
+        style={[
+          sr.checkKnop,
+          { backgroundColor: isCompleted ? kleuren.succes : kleuren.kaartRand },
+        ]}
+        activeOpacity={0.75}
+      >
+        <Ionicons name="checkmark" size={18} color={isCompleted ? '#FFF' : kleuren.tekstSecundair} />
+      </TouchableOpacity>
+
+      <SetTypeModal
+        zichtbaar={typeModal}
+        onSluiten={() => setTypeModal(false)}
+        onKies={(t) => setSetType(oefeningId, set.id, t)}
+        onVerwijder={() => removeSet(oefeningId, set.id)}
+        huidigType={set.type}
+        kleuren={kleuren}
+      />
     </View>
   );
 }
 
 const sr = StyleSheet.create({
-  rij: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, marginBottom: 6, paddingVertical: 8, paddingHorizontal: 10, gap: 8 },
-  nummerKnop: { width: 38, alignItems: 'center' },
-  nummerBadge: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  rij: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  nummerKnop: { width: 34, alignItems: 'center' },
+  nummerBadge: { width: 28, height: 28, borderRadius: 7, justifyContent: 'center', alignItems: 'center' },
   nummerTekst: { fontSize: 13, fontFamily: 'Inter_700Bold' },
   vorige: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  input: { flex: 1.2, borderRadius: 10, textAlign: 'center', paddingVertical: 9, fontSize: 16, fontFamily: 'Inter_700Bold' },
-  checkKnop: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  quickAddRij: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 10,
-    marginBottom: 8,
-    marginTop: -4,
-  },
-  quickKnop: {
-    flex: 1,
+  input: {
+    flex: 1.15,
     borderRadius: 8,
-    borderWidth: 1,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  quickTekst: {
-    fontSize: 12,
+    textAlign: 'center',
+    paddingVertical: 7,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
   },
+  checkKnop: { width: 38, height: 34, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
 });
 
 function OefeningKaart({
-  oefening, kleuren, bestaandePRs, onNieuwPR,
+  oefening, kleuren, bestaandePRs, onNieuwPR, userId, rustSeconden,
 }: {
   oefening: LiveOefening; kleuren: any;
   bestaandePRs: Record<string, number>;
   onNieuwPR: (oefeningId: string, eenRM: number) => void;
+  userId: string | undefined;
+  rustSeconden: number;
 }) {
-  const { toggleOefening, addSet } = useLiveWorkout();
+  const { addSet, removeOefening, updateNotitie } = useLiveWorkout();
   const info = findExercise(oefening.id);
   const toonGewicht = info?.type === 'gewicht';
   const [warmupZicht, setWarmupZicht] = useState(false);
   const [guideZicht, setGuideZicht] = useState(false);
+  const [optiesZicht, setOptiesZicht] = useState(false);
 
-  const werkGewicht = oefening.sets.find(s => s.type === 'normaal')?.gewicht
-    ?? oefening.sets[oefening.sets.length - 1]?.gewicht
+  const { haalLaatsteOp, vorigeSessie, vorigeSets, vorigeWarmupSets } = useVorigeSessie(userId);
+  const geladeLaatste = useRef(false);
+
+  useEffect(() => {
+    if (userId && !geladeLaatste.current) {
+      geladeLaatste.current = true;
+      haalLaatsteOp(oefening.id);
+    }
+  }, [userId, oefening.id, haalLaatsteOp]);
+
+  const effectieveRust = oefening.rustTijd && oefening.rustTijd > 0 ? oefening.rustTijd : rustSeconden;
+
+  const werkGewicht =
+    oefening.sets.find(s => s.type === 'normaal' && s.gewicht > 0)?.gewicht
+    ?? oefening.sets.find(s => s.gewicht > 0)?.gewicht
+    ?? vorigeSets[0]?.gewicht
+    ?? 0;
   const mediaUri = info?.image_url || (info?.image ? getMediaUrl(info.image) : '');
 
+  const openOefeningOpties = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setOptiesZicht(true);
+  };
+
   return (
-    <View style={[ok.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-      <TouchableOpacity style={ok.header} onPress={() => toggleOefening(oefening.id)}>
-        <View style={[ok.thumbContainer, { backgroundColor: '#FFFFFF', borderColor: kleuren.kaartRand }]}>
-          {mediaUri ? (
-            <Image source={{ uri: mediaUri }} style={ok.thumbImage} resizeMode="contain" />
-          ) : (
-            <Ionicons name={(info?.icoon as any) || 'barbell-outline'} size={18} color={kleuren.accent} />
-          )}
-        </View>
-        <Text style={[ok.naam, { color: kleuren.tekst }]} numberOfLines={1}>{info?.naam || oefening.id}</Text>
-        
-        <TouchableOpacity
-          style={ok.infoKnop}
-          onPress={(e) => {
-            e.stopPropagation();
-            setGuideZicht(true);
-          }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityLabel="Oefening uitleg bekijken"
-        >
-          <Ionicons name="information-circle-outline" size={20} color={kleuren.accent} />
+    <View style={[ok.sectie, { borderBottomColor: kleuren.kaartRand }]}>
+      <View style={ok.header}>
+        <TouchableOpacity style={ok.titelLinks} onPress={() => setGuideZicht(true)} activeOpacity={0.75}>
+          <View style={[ok.thumbContainer, { backgroundColor: '#FFFFFF', borderColor: kleuren.kaartRand }]}>
+            {mediaUri ? (
+              <Image source={{ uri: mediaUri }} style={ok.thumbImage} resizeMode="contain" />
+            ) : (
+              <Ionicons name={(info?.icoon as any) || 'barbell-outline'} size={18} color={kleuren.accent} />
+            )}
+          </View>
+          <Text style={[ok.naam, { color: kleuren.accent }]} numberOfLines={1}>
+            {info?.naam || oefening.id}
+          </Text>
         </TouchableOpacity>
 
-        <View style={ok.voltooiInfo}>
-          <Text style={[ok.voltooiTekst, { color: kleuren.tekstGedimpt }]}>
-            {oefening.sets.filter(s => s.completed).length}/{oefening.sets.length}
-          </Text>
+        <TouchableOpacity
+          style={ok.optieKnop}
+          onPress={openOefeningOpties}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Oefening opties"
+        >
+          <Ionicons name="ellipsis-horizontal" size={20} color={kleuren.tekstGedimpt} />
+        </TouchableOpacity>
+      </View>
+
+      <TextInput
+        style={[ok.notitieInput, { color: kleuren.tekstGedimpt }]}
+        value={oefening.notitie ?? ''}
+        onChangeText={(tekst) => updateNotitie(oefening.id, tekst)}
+        placeholder="Notitie toevoegen..."
+        placeholderTextColor={kleuren.tekstGedimpt}
+        multiline={false}
+        returnKeyType="done"
+        accessibilityLabel={`Notitie voor ${info?.naam || oefening.id}`}
+      />
+
+      <View style={ok.kolomHeaders}>
+        <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, width: 34, textAlign: 'center' }]}>SET</Text>
+        <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, flex: 1, textAlign: 'center' }]}>VORIG</Text>
+        {toonGewicht && <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, flex: 1.15, textAlign: 'center' }]}>KG</Text>}
+        <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, flex: 1.15, textAlign: 'center' }]}>REPS</Text>
+        <View style={{ width: 38, alignItems: 'center' }}>
+          <Ionicons name="checkmark" size={13} color={kleuren.tekstGedimpt} />
         </View>
-        <Ionicons
-          name={oefening.expanded ? 'chevron-up' : 'chevron-down'}
-          size={18} color={kleuren.tekstGedimpt}
-        />
-      </TouchableOpacity>
+      </View>
 
-      {oefening.expanded && (
-        <View style={ok.setsContainer}>
-          <View style={ok.kolomHeaders}>
-            <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, width: 38, textAlign: 'center' }]}>SET</Text>
-            <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, flex: 1, textAlign: 'center' }]}>VORIG</Text>
-            {toonGewicht && <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, flex: 1.2, textAlign: 'center' }]}>KG</Text>}
-            <Text style={[ok.kolomHeader, { color: kleuren.tekstGedimpt, flex: 1.2, textAlign: 'center' }]}>REPS</Text>
-            <View style={{ width: 44 }} />
-          </View>
+      {(() => {
+        let werkTeller = 0;
+        let warmupTeller = 0;
+        return oefening.sets.map((set, i) => {
+          let vorigPunt = set.vorige ?? null;
+          if (!vorigPunt) {
+            if (set.type === 'warmup') {
+              const matchWarmup = vorigeWarmupSets[warmupTeller];
+              warmupTeller++;
+              if (matchWarmup) {
+                vorigPunt = { gewicht: matchWarmup.gewicht, reps: matchWarmup.reps };
+              }
+            } else {
+              const matchWerk =
+                vorigeSets[werkTeller] ??
+                (vorigeSets.length === 1 ? vorigeSets[0] : undefined);
+              werkTeller++;
+              if (matchWerk) {
+                vorigPunt = { gewicht: matchWerk.gewicht, reps: matchWerk.reps };
+              } else if (vorigeSets.length === 0 && vorigeSessie) {
+                vorigPunt = {
+                  gewicht: Number(vorigeSessie.weight),
+                  reps: Number(vorigeSessie.reps),
+                };
+              }
+            }
+          }
 
-          {oefening.sets.map((set, i) => (
+          return (
             <SetRij
               key={set.id}
-              set={set} index={i}
+              set={set}
+              index={i}
               oefeningId={oefening.id}
               toonGewicht={toonGewicht}
-              vorige={set.vorige}
+              vorige={vorigPunt}
               kleuren={kleuren}
               bestaandePR={bestaandePRs[oefening.id] ?? 0}
               onNieuwPR={(eenRM) => onNieuwPR(oefening.id, eenRM)}
+              rustSeconden={effectieveRust}
             />
-          ))}
+          );
+        });
+      })()}
 
-          <View style={ok.footer}>
-            <TouchableOpacity style={ok.addSetKnop} onPress={() => addSet(oefening.id)}>
-              <Ionicons name="add" size={16} color={kleuren.accent} />
-              <Text style={{ color: kleuren.accent, fontSize: 13, fontFamily: 'Inter_600SemiBold' }}>Set toevoegen</Text>
-            </TouchableOpacity>
+      <View style={ok.footer}>
+        <TouchableOpacity
+          style={[ok.addSetKnop, { backgroundColor: kleuren.kaart }]}
+          onPress={() => addSet(oefening.id)}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="add" size={17} color={kleuren.tekst} />
+          <Text style={[ok.addSetTekst, { color: kleuren.tekst }]}>Set toevoegen</Text>
+        </TouchableOpacity>
+      </View>
 
-            {toonGewicht && werkGewicht > 0 && (
-              <TouchableOpacity
-                style={[ok.warmupKnop, { borderColor: kleuren.warmup + '66' }]}
-                onPress={() => setWarmupZicht(true)}
-              >
-                <Ionicons name="flame-outline" size={14} color={kleuren.warmup} />
-                <Text style={[ok.warmupTekst, { color: kleuren.warmup }]}>Opwarmen</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
+      <OefeningOptiesModal
+        zichtbaar={optiesZicht}
+        oefeningNaam={info?.naam || oefening.id}
+        toonWarmup={toonGewicht}
+        onSluiten={() => setOptiesZicht(false)}
+        onUitleg={() => setGuideZicht(true)}
+        onWarmup={() => setWarmupZicht(true)}
+        onVerwijder={() => removeOefening(oefening.id)}
+        kleuren={kleuren}
+      />
 
       <WarmupModal
         zichtbaar={warmupZicht}
@@ -413,59 +614,116 @@ function OefeningKaart({
 }
 
 const ok = StyleSheet.create({
-  kaart: { borderWidth: 1, borderRadius: 16, marginBottom: 12, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 10 },
-  thumbContainer: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  sectie: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    gap: 10,
+  },
+  titelLinks: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  thumbContainer: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   thumbImage: { width: '100%', height: '100%' },
-  icoonContainer: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  naam: { flex: 1, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  voltooiInfo: { marginRight: 4 },
-  voltooiTekst: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  infoKnop: { padding: 4, marginRight: 2 },
-  setsContainer: { paddingHorizontal: 10, paddingBottom: 12 },
-  kolomHeaders: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2, marginBottom: 6, gap: 8 },
+  naam: { flex: 1, fontSize: 16, fontFamily: 'Inter_700Bold' },
+  optieKnop: { padding: 6 },
+  notitieInput: {
+    paddingHorizontal: 14,
+    paddingTop: 0,
+    paddingBottom: 8,
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
+  kolomHeaders: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    marginBottom: 4,
+    gap: 8,
+  },
   kolomHeader: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.8 },
-  footer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  addSetKnop: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, padding: 10 },
-  warmupKnop: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 10, borderRadius: 10, borderWidth: 1 },
-  warmupTekst: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  footer: { paddingHorizontal: 14, marginTop: 10 },
+  addSetKnop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  addSetTekst: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
 });
 
 export default function WorkoutSession() {
   const router = useRouter();
   const { kleuren } = useThema();
   const { user } = useAuth();
-  const { slaOp, laden: ladenOpslaan } = useOpslaanWorkout();
+  const { slaOp, laden: ladenOpslaan, fout: foutOpslaan } = useOpslaanWorkout();
   const {
-    isActief, routineNaam, oefeningen, verlopenTijd,
-    stopWorkout, rustTimerLoopt, rustTimerResterend,
-    stopRustTimer, addOefening,
+    isActief, routineNaam, routineId, oefeningen, verlopenTijd,
+    stopWorkout, rustTimerLoopt, rustTimerResterend, rustTimerDuur,
+    pasRustTimerAan, stopRustTimer, addOefening,
   } = useLiveWorkout();
 
   const [selectorZicht, setSelectorZicht] = useState(false);
+  const [rustTijdInstelling, setRustTijdInstelling] = useState(120);
   const [bestaandePRs, setBestaandePRs] = useState<Record<string, number>>({});
   const [prState, setPrState] = useState<PrState>({ zichtbaar: false, oefeningNaam: '', eenRM: 0 });
   const [samenvattingData, setSamenvattingData] = useState<WorkoutSamenvattingData | null>(null);
+  const verlatenRef = useRef(false);
+
+  const veiligTerug = useCallback(() => {
+    if (verlatenRef.current) return;
+    verlatenRef.current = true;
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/workout');
+    }
+  }, [router]);
 
   useEffect(() => {
-    if (!isActief) {
-      if (router.canGoBack()) router.back();
-      else router.replace('/(tabs)/workout');
+    if (foutOpslaan) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`Opslaan mislukt\n\n${foutOpslaan}`);
+      } else {
+        Alert.alert('Opslaan mislukt', foutOpslaan);
+      }
     }
-  }, [isActief]);
+  }, [foutOpslaan]);
+
+  useEffect(() => {
+    if (!isActief && !verlatenRef.current) {
+      verlatenRef.current = true;
+      router.replace('/(tabs)/workout');
+    }
+  }, [isActief, router]);
+
+  useEffect(() => {
+    getDefaultRestTime().then(setRustTijdInstelling);
+  }, []);
 
   useEffect(() => {
     if (!user?.id || oefeningen.length === 0) return;
     const oefeningIds = oefeningen.map(o => o.id);
     supabase
       .from('workouts')
-      .select('exercise, weight, reps')
+      .select('*')
       .eq('user_id', user.id)
       .in('exercise', oefeningIds)
       .then(({ data }) => {
         if (!data) return;
         const prs: Record<string, number> = {};
         for (const row of data) {
+          if (row.set_type === 'warmup') continue;
           const eenRM = bereken1RM(Number(row.weight), Number(row.reps));
           if (!prs[row.exercise] || eenRM > prs[row.exercise]) {
             prs[row.exercise] = eenRM;
@@ -512,31 +770,114 @@ export default function WorkoutSession() {
 
   const handleOpslaanEnAfsluiten = useCallback(async () => {
     if (!user?.id) return;
-    const workoutsData = oefeningen.flatMap(o =>
-      o.sets
-        .filter(s => s.completed)
-        .map(s => {
-          const volume = berekenVolume(1, s.reps, s.gewicht);
-          const arbeid = berekenArbeid(o.id, s.reps, s.gewicht);
-          return {
-            user_id: user.id,
-            date: new Date().toISOString().split('T')[0],
-            exercise: o.id,
-            sets: 1,
-            reps: s.reps,
-            weight: s.gewicht,
-            volume: parseFloat(volume.toFixed(2)),
-            work_joules: parseFloat(arbeid.toFixed(2)),
-          };
-        })
-    );
+    const vandaag = new Date().toISOString().split('T')[0];
+    const sessionId = genereerUuid();
+
+    // Optie 1: sla elke voltooide set als een eigen losse rij op (0% dataverlies)
+    const workoutsData: NieuweWorkout[] = oefeningen.flatMap((o) => {
+      const voltooideSets = o.sets.filter(s => s.completed);
+      if (voltooideSets.length === 0) return [];
+      const notitieSchoon = o.notitie?.trim() ? o.notitie.trim() : null;
+
+      return voltooideSets.map((s, idx): NieuweWorkout => ({
+        user_id: user.id,
+        date: vandaag,
+        exercise: o.id,
+        sets: 1,
+        reps: s.reps,
+        weight: s.gewicht,
+        volume: parseFloat(berekenVolume(1, s.reps, s.gewicht).toFixed(2)),
+        work_joules: parseFloat(berekenArbeid(o.id, s.reps, s.gewicht).toFixed(2)),
+        rpe: s.rpe ?? null,
+        prescribed_sets: null,
+        prescribed_reps: null,
+        prescribed_weight: null,
+        is_meting: false,
+        test_moment: null,
+        session_id: sessionId,
+        set_number: idx + 1,
+        set_type: s.type,
+        notitie: idx === 0 ? notitieSchoon : null,
+      }));
+    });
+
     if (workoutsData.length > 0) {
-      await slaOp(workoutsData);
+      const gelukt = await slaOp(workoutsData);
+      if (!gelukt) return;
     }
+
+    if (routineId) {
+      try {
+        const routines = await getRoutines();
+        const bestaandeRoutine = routines.find(r => r.id === routineId);
+        if (bestaandeRoutine) {
+          const bijgewerkteOefeningen = bestaandeRoutine.oefeningen.map(ro => {
+            const liveOef = oefeningen.find(o => o.id === ro.id);
+            if (!liveOef) return ro;
+            const werkSets = liveOef.sets.filter(setItem => setItem.completed && setItem.type !== 'warmup');
+            const bronSets = werkSets.length > 0 ? werkSets : liveOef.sets.filter(setItem => setItem.completed);
+            if (bronSets.length === 0) return ro;
+            const nieuwSets = ro.sets.map((rs, idx) => {
+              const bron = bronSets[idx] ?? bronSets[bronSets.length - 1];
+              return {
+                ...rs,
+                gewicht: bron ? bron.gewicht : rs.gewicht,
+                reps: bron && bron.reps > 0 ? bron.reps : rs.reps,
+              };
+            });
+            return { ...ro, sets: nieuwSets };
+          });
+          await saveRoutine({ ...bestaandeRoutine, oefeningen: bijgewerkteOefeningen });
+        }
+      } catch (err) {
+        console.warn('Kon routine-gewichten niet bijwerken:', err);
+      }
+    }
+
     setSamenvattingData(null);
+    verlatenRef.current = true;
     stopWorkout();
-    router.back();
-  }, [oefeningen, user?.id, slaOp, stopWorkout, router]);
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/workout');
+    }
+  }, [oefeningen, routineId, user?.id, slaOp, stopWorkout, router]);
+
+  const handleAnnuleerWorkout = useCallback(() => {
+    const voerAnnulerenUit = () => {
+      verlatenRef.current = true;
+      stopWorkout();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/workout');
+      }
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const bevestigd = window.confirm(
+        'Workout annuleren?\n\nWeet je zeker dat je deze training wilt verwijderen zonder op te slaan?'
+      );
+      if (bevestigd) {
+        voerAnnulerenUit();
+      }
+      return;
+    }
+
+    Alert.alert(
+      'Workout annuleren?',
+      'Weet je zeker dat je deze training wilt verwijderen zonder op te slaan?',
+      [
+        { text: 'Doorgaan', style: 'cancel' },
+        {
+          text: 'Verwijderen',
+          style: 'destructive',
+          onPress: voerAnnulerenUit,
+        },
+      ]
+    );
+  }, [stopWorkout, router]);
 
   const handleOefeningToevoegen = (oefeningId: string) => {
     addOefening(oefeningId);
@@ -545,51 +886,60 @@ export default function WorkoutSession() {
 
   if (!isActief) return null;
 
+  const liveVoltooideSets = oefeningen.reduce(
+    (acc, o) => acc + o.sets.filter(setItem => setItem.completed).length,
+    0
+  );
+  const liveVolume = oefeningen.reduce(
+    (acc, o) =>
+      acc +
+      o.sets
+        .filter(setItem => setItem.completed)
+        .reduce((som, setItem) => som + berekenVolume(1, setItem.reps, setItem.gewicht), 0),
+    0
+  );
+  const rustVoortgangPct = Math.max(
+    0,
+    Math.min(100, (rustTimerResterend / Math.max(1, rustTimerDuur)) * 100)
+  );
+
   return (
     <SafeAreaView style={[s.veilig, { backgroundColor: kleuren.achtergrond }]}>
       <View style={[s.header, { borderBottomColor: kleuren.kaartRand }]}>
-        <TouchableOpacity style={s.headerKnop} onPress={() => {
-          if (router.canGoBack()) router.back();
-          else router.replace('/(tabs)/workout');
-        }}>
+        <TouchableOpacity style={s.headerKnop} onPress={veiligTerug}>
           <Ionicons name="chevron-down" size={22} color={kleuren.tekstGedimpt} />
         </TouchableOpacity>
 
         <View style={s.headerMidden}>
           <Text style={[s.routineNaam, { color: kleuren.tekst }]} numberOfLines={1}>{routineNaam}</Text>
-          <Text style={[s.timerTekst, { color: kleuren.accent }]}>{formatTijd(verlopenTijd)}</Text>
         </View>
 
         <TouchableOpacity
-          style={[s.afrondenKnop, { backgroundColor: kleuren.succes }]}
+          style={[s.afrondenKnop, { backgroundColor: kleuren.accent }]}
           onPress={handleAfronden}
           disabled={ladenOpslaan}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <Ionicons name="checkmark" size={16} color="#FFF" />
-            <Text style={s.afrondenTekst}>Klaar</Text>
-          </View>
+          <Text style={s.afrondenTekst}>Klaar</Text>
         </TouchableOpacity>
       </View>
 
-      {rustTimerLoopt && (
-        <Animated.View
-          entering={FadeIn.duration(300)}
-          exiting={FadeOut.duration(300)}
-          style={[s.rustBanner, {
-            backgroundColor: rustTimerResterend <= 10 ? kleuren.fout + '22' : kleuren.accent + '15',
-            borderColor: rustTimerResterend <= 10 ? kleuren.fout + '55' : kleuren.accent + '44',
-          }]}
-        >
-          <Ionicons name="timer-outline" size={16} color={rustTimerResterend <= 10 ? kleuren.fout : kleuren.accent} />
-          <Text style={[s.rustTekst, { color: rustTimerResterend <= 10 ? kleuren.fout : kleuren.accent }]}>
-            Rust: {formatTijd(rustTimerResterend)}
-          </Text>
-          <TouchableOpacity onPress={stopRustTimer}>
-            <Text style={{ color: kleuren.tekstGedimpt, fontSize: 13 }}>Overslaan</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
+      {/* Live Stats Sub-header */}
+      <View style={[s.statsBalk, { backgroundColor: kleuren.achtergrondSecundair, borderBottomColor: kleuren.kaartRand }]}>
+        <View style={s.statItem}>
+          <Text style={[s.statLabel, { color: kleuren.tekstGedimpt }]}>DUUR</Text>
+          <Text style={[s.statWaarde, { color: kleuren.accentLicht }]}>{formatTijd(verlopenTijd)}</Text>
+        </View>
+        <View style={[s.statScheider, { backgroundColor: kleuren.kaartRand }]} />
+        <View style={s.statItem}>
+          <Text style={[s.statLabel, { color: kleuren.tekstGedimpt }]}>VOLUME</Text>
+          <Text style={[s.statWaarde, { color: kleuren.tekst }]}>{liveVolume.toFixed(0)} kg</Text>
+        </View>
+        <View style={[s.statScheider, { backgroundColor: kleuren.kaartRand }]} />
+        <View style={s.statItem}>
+          <Text style={[s.statLabel, { color: kleuren.tekstGedimpt }]}>SETS</Text>
+          <Text style={[s.statWaarde, { color: kleuren.tekst }]}>{liveVoltooideSets}</Text>
+        </View>
+      </View>
 
       <ScrollView
         style={{ flex: 1 }}
@@ -604,19 +954,99 @@ export default function WorkoutSession() {
             kleuren={kleuren}
             bestaandePRs={bestaandePRs}
             onNieuwPR={handleNieuwPR}
+            userId={user?.id}
+            rustSeconden={rustTijdInstelling}
           />
         ))}
 
-        <TouchableOpacity
-          style={[s.addOefKnop, { borderColor: kleuren.kaartRand }]}
-          onPress={() => setSelectorZicht(true)}
-        >
-          <Ionicons name="add-circle-outline" size={20} color={kleuren.accent} style={{ marginRight: 8 }} />
-          <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 15 }}>Oefening Toevoegen</Text>
-        </TouchableOpacity>
+        <View style={s.addOefContainer}>
+          <TouchableOpacity
+            style={[s.addOefKnop, { backgroundColor: kleuren.accent }]}
+            onPress={() => setSelectorZicht(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add" size={20} color="#FFF" />
+            <Text style={s.addOefTekst}>Oefening Toevoegen</Text>
+          </TouchableOpacity>
+        </View>
 
-        <View style={{ height: 40 }} />
+        <View style={s.annuleerContainer}>
+          <TouchableOpacity
+            style={s.annuleerKnop}
+            onPress={handleAnnuleerWorkout}
+            activeOpacity={0.7}
+            accessibilityLabel="Workout annuleren"
+          >
+            <Text style={[s.annuleerTekst, { color: kleuren.fout }]}>Workout Annuleren</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: rustTimerLoopt ? 90 : 32 }} />
       </ScrollView>
+
+      {/* Vaste Hevy-stijl Rusttimer Onderaan */}
+      {rustTimerLoopt && (
+        <Animated.View
+          entering={SlideInDown.duration(220)}
+          exiting={FadeOut.duration(180)}
+          style={[s.rustBalkOnderaan, { backgroundColor: kleuren.kaart, borderTopColor: kleuren.kaartRand }]}
+        >
+          <View style={[s.rustVoortgangTrack, { backgroundColor: kleuren.kaartRand }]}>
+            <View
+              style={[
+                s.rustVoortgangVulling,
+                {
+                  width: `${rustVoortgangPct}%`,
+                  backgroundColor: rustTimerResterend <= 10 ? kleuren.fout : kleuren.accent,
+                },
+              ]}
+            />
+          </View>
+          <View style={s.rustBalkInhoud}>
+            <View style={s.rustTijdLinks}>
+              <Ionicons
+                name="timer-outline"
+                size={20}
+                color={rustTimerResterend <= 10 ? kleuren.fout : kleuren.accentLicht}
+              />
+              <Text
+                style={[
+                  s.rustBalkTijd,
+                  { color: rustTimerResterend <= 10 ? kleuren.fout : kleuren.tekst },
+                ]}
+              >
+                {formatTijd(rustTimerResterend)}
+              </Text>
+            </View>
+
+            <View style={s.rustKnoppenRechts}>
+              <TouchableOpacity
+                style={[s.rustStapKnop, { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand }]}
+                onPress={() => pasRustTimerAan(-15)}
+                activeOpacity={0.75}
+              >
+                <Text style={[s.rustStapTekst, { color: kleuren.tekst }]}>-15s</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.rustStapKnop, { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand }]}
+                onPress={() => pasRustTimerAan(15)}
+                activeOpacity={0.75}
+              >
+                <Text style={[s.rustStapTekst, { color: kleuren.tekst }]}>+15s</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.rustOverslaanKnop, { backgroundColor: kleuren.accent }]}
+                onPress={stopRustTimer}
+                activeOpacity={0.8}
+              >
+                <Text style={s.rustOverslaanTekst}>Overslaan</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      )}
 
       <ExerciseSelector
         zichtbaar={selectorZicht}
@@ -648,22 +1078,114 @@ const s = StyleSheet.create({
   veilig: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center',
-    padding: 14, borderBottomWidth: 1, gap: 12,
+    paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, gap: 12,
   },
-  headerKnop: { width: 38, height: 38, justifyContent: 'center', alignItems: 'center' },
+  headerKnop: { width: 34, height: 34, justifyContent: 'center', alignItems: 'center' },
   headerMidden: { flex: 1, alignItems: 'center' },
-  routineNaam: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  timerTekst: { fontSize: 13, fontFamily: 'Inter_900Black', letterSpacing: 1, marginTop: 2 },
-  afrondenKnop: { borderRadius: 10, paddingVertical: 9, paddingHorizontal: 16 },
+  routineNaam: { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  afrondenKnop: { borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
   afrondenTekst: { color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 14 },
-  rustBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1,
+  statsBalk: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
   },
-  rustTekst: { flex: 1, fontSize: 14, fontFamily: 'Inter_700Bold' },
-  scrollInhoud: { padding: 16, paddingTop: 12 },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  statWaarde: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+  },
+  statScheider: {
+    width: 1,
+    height: 24,
+  },
+  scrollInhoud: { paddingBottom: 16 },
+  addOefContainer: { paddingHorizontal: 14, paddingTop: 16 },
   addOefKnop: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    padding: 16, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: 10,
+  },
+  addOefTekst: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+  },
+  annuleerContainer: { paddingHorizontal: 14, paddingTop: 14 },
+  annuleerKnop: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  annuleerTekst: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+  rustBalkOnderaan: {
+    borderTopWidth: 1,
+  },
+  rustVoortgangTrack: {
+    height: 3,
+    width: '100%',
+  },
+  rustVoortgangVulling: {
+    height: '100%',
+  },
+  rustBalkInhoud: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  rustTijdLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rustBalkTijd: {
+    fontSize: 18,
+    fontFamily: 'Inter_900Black',
+    letterSpacing: 0.5,
+  },
+  rustKnoppenRechts: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rustStapKnop: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  rustStapTekst: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+  },
+  rustOverslaanKnop: {
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  rustOverslaanTekst: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
   },
 });

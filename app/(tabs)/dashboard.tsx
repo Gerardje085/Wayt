@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView,
+  View, Text, ScrollView, StyleSheet,
   RefreshControl, TouchableOpacity, Dimensions
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -12,6 +13,7 @@ import { useStatistieken } from '../../src/hooks/useStatistieken';
 import type { DagData, SpiergroepVerdeling } from '../../src/hooks/useStatistieken';
 import MetingModal from '../../src/components/MetingModal';
 import HerstelHeatmap from '../../src/components/HerstelHeatmap';
+import ErrorBanner from '../../src/components/ErrorBanner';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -118,7 +120,7 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const { kleuren } = useThema();
   const router = useRouter();
-  const { laadStatistieken, data, laden } = useStatistieken(user?.id);
+  const { laadStatistieken, data, laden, fout } = useStatistieken(user?.id);
   const [metingZichtbaar, setMetingZichtbaar] = useState(false);
 
   useEffect(() => { laadStatistieken(); }, [laadStatistieken]);
@@ -139,25 +141,26 @@ export default function DashboardScreen() {
         }
       >
         <View style={s.headerRij}>
-          <View>
-            <Text style={[s.headerTitel, { color: kleuren.tekst }]}>Jouw Voortgang</Text>
-            <Text style={[s.headerSub, { color: kleuren.tekstGedimpt }]}>Laatste 90 dagen</Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={s.headerZij}>
             <TouchableOpacity
               style={[s.metingKnop, { backgroundColor: kleuren.waarschuwing + '22', borderColor: kleuren.waarschuwing + '55' }]}
               onPress={() => setMetingZichtbaar(true)}
               accessibilityLabel="Officiele 1RM meting starten"
             >
-              <Ionicons name="trophy-outline" size={16} color={kleuren.waarschuwing} />
+              <Ionicons name="trophy-outline" size={14} color={kleuren.waarschuwing} />
               <Text style={[s.metingKnopTekst, { color: kleuren.waarschuwing }]}>1RM</Text>
             </TouchableOpacity>
+          </View>
+
+          <Text style={[s.headerTitel, { color: kleuren.tekst }]}>Profiel</Text>
+
+          <View style={[s.headerZij, { alignItems: 'flex-end' }]}>
             <TouchableOpacity
               style={[s.instellingenKnop, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}
-              onPress={() => router.push('/(tabs)/admin')}
-              accessibilityLabel="Onderzoeksdata openen"
+              onPress={() => router.push('/instellingen')}
+              accessibilityLabel="Instellingen openen"
             >
-              <Ionicons name="settings-outline" size={20} color={kleuren.tekstGedimpt} />
+              <Ionicons name="settings-outline" size={18} color={kleuren.tekstGedimpt} />
             </TouchableOpacity>
           </View>
         </View>
@@ -167,12 +170,14 @@ export default function DashboardScreen() {
           <ConsistencyCalendar heatmap={heatmap} kleuren={kleuren} />
         </View>
 
+        {fout && <ErrorBanner bericht={fout} onProbeerOpnieuw={laadStatistieken} />}
+
         <Text style={[s.sectieLabel, { color: kleuren.tekstGedimpt }]}>DEZE WEEK</Text>
         <View style={s.statRij}>
           {[
             { label: 'Workouts', waarde: String(weekStat?.workouts ?? 0), icoon: 'barbell-outline' },
             { label: 'Volume', waarde: `${((weekStat?.totaalVolume ?? 0) / 1000).toFixed(1)}t`, icoon: 'trending-up-outline' },
-            { label: 'Sets', waarde: String(weekStat?.minutenGeraamd ?? 0), icoon: 'checkmark-circle-outline' },
+            { label: 'Sets', waarde: String(weekStat?.totaalSets ?? 0), icoon: 'checkmark-circle-outline' },
           ].map((stat) => (
             <View key={stat.label} style={[s.statKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
               <Ionicons name={stat.icoon as any} size={22} color={kleuren.accent} style={{ marginBottom: 8 }} />
@@ -245,24 +250,24 @@ export default function DashboardScreen() {
 const s = StyleSheet.create({
   veilig: { flex: 1 },
   inhoud: { padding: 20 },
-  headerRij: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  headerTitel: { fontSize: 30, fontFamily: 'Inter_900Black', letterSpacing: -1 },
-  headerSub: { fontSize: 14, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  headerRij: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
+  headerZij: { width: 76, alignItems: 'flex-start' },
+  headerTitel: { fontSize: 17, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   instellingenKnop: {
-    width: 42, height: 42, borderRadius: 14, borderWidth: 1,
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   metingKnop: {
-    height: 42, borderRadius: 14, borderWidth: 1,
+    height: 36, borderRadius: 10, borderWidth: 1,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 12, gap: 5,
+    paddingHorizontal: 10, gap: 4,
   },
   metingKnopTekst: {
-    fontSize: 13, fontFamily: 'Inter_700Bold',
+    fontSize: 12, fontFamily: 'Inter_700Bold',
   },
 
   kaart: {
-    borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 16,
   },
   kaartTitel: {
     fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.2,
@@ -276,9 +281,9 @@ const s = StyleSheet.create({
 
   statRij: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   statKaart: {
-    flex: 1, borderWidth: 1, borderRadius: 16, padding: 14, alignItems: 'center',
+    flex: 1, borderWidth: 1, borderRadius: 14, padding: 14, alignItems: 'center',
   },
-  statWaarde: { fontSize: 22, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
+  statWaarde: { fontSize: 20, fontFamily: 'Inter_700Bold', letterSpacing: -0.3 },
   statLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
 
   donutRij: { flexDirection: 'row', alignItems: 'center', gap: 16 },
@@ -290,13 +295,13 @@ const s = StyleSheet.create({
 
   prRij: {
     flexDirection: 'row', alignItems: 'center', borderWidth: 1,
-    borderRadius: 14, padding: 14, marginBottom: 8,
+    borderRadius: 12, padding: 14, marginBottom: 8,
   },
   prLinks: { flex: 1 },
   prNaam: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   prDatum: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
   prRechts: { alignItems: 'flex-end', marginRight: 12 },
-  prEenRM: { fontSize: 18, fontFamily: 'Inter_900Black', letterSpacing: -0.5 },
+  prEenRM: { fontSize: 18, fontFamily: 'Inter_700Bold', letterSpacing: -0.3 },
   prDetail: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
 
   leegTekst: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', padding: 16, lineHeight: 22 },

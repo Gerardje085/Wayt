@@ -5,8 +5,9 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  FlatList, TextInput, KeyboardAvoidingView, Platform, Image, SafeAreaView, ScrollView,
+  FlatList, TextInput, KeyboardAvoidingView, Platform, Image, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useThema } from '../context/ThemeContext';
 import {

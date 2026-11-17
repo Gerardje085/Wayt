@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, StyleSheet, Pressable,
+  Modal, View, Text, TouchableOpacity, StyleSheet, Pressable, Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -41,6 +41,11 @@ export default function WarmupModal({ zichtbaar, onSluiten, werkGewicht, oefenin
   }, [zichtbaar]);
 
   const sluitModal = useCallback(() => {
+    if (Platform.OS === 'web') {
+      setIsActief(false);
+      onSluiten();
+      return;
+    }
     overlayOpacity.value = withTiming(0, { duration: 180 });
     sheetTranslateY.value = withTiming(500, { duration: 220, easing: Easing.in(Easing.cubic) }, (finished) => {
       if (finished) {

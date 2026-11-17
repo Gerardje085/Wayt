@@ -7,6 +7,9 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { OEFENINGEN_DB, findExercise } from '../data/exercises';
 import { bereken1RM } from '../context/LiveWorkoutContext';
+import { vertaalFout } from '../utils/errorVertaler';
+import { groepeerNaarSessies, telUniekeWorkoutSessies } from '../utils/sessieGroepering';
+import type { Workout } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,8 +20,9 @@ export interface DagData {
 }
 
 export interface WeekStat {
-  workouts:      number;
-  totaalVolume:  number;
+  workouts:       number;
+  totaalVolume:   number;
+  totaalSets:     number;
   minutenGeraamd: number;
 }
 
@@ -87,15 +91,18 @@ export function useStatistieken(userId: string | undefined): StatResult {
 
       if (error) throw error;
 
-      // ─── Heatmap (90 dagen) ────────────────────────────────────────────────
+      const alleRijen = (workouts as Workout[]) ?? [];
+      const alleSessies = groepeerNaarSessies(alleRijen);
+
+      // ─── Heatmap (90 dagen): tel unieke oefeningssessies & volume per dag ──
       const dagMap = new Map<string, DagData>();
-      for (const w of workouts ?? []) {
-        const existing = dagMap.get(w.date);
+      for (const ses of alleSessies) {
+        const existing = dagMap.get(ses.datum);
         if (existing) {
           existing.count++;
-          existing.volume += parseFloat(String(w.volume)) || 0;
+          existing.volume += ses.totaalVolume;
         } else {
-          dagMap.set(w.date, { datum: w.date, count: 1, volume: parseFloat(String(w.volume)) || 0 });
+          dagMap.set(ses.datum, { datum: ses.datum, count: 1, volume: ses.totaalVolume });
         }
       }
       const heatmap = Array.from(dagMap.values());
@@ -104,34 +111,38 @@ export function useStatistieken(userId: string | undefined): StatResult {
       const zevenDagenGeleden = new Date();
       zevenDagenGeleden.setDate(zevenDagenGeleden.getDate() - 7);
       const weekDatum = zevenDagenGeleden.toISOString().split('T')[0];
-      const weekWorkouts = (workouts ?? []).filter(w => w.date >= weekDatum);
+      const weekWorkouts = alleRijen.filter(w => w.date >= weekDatum);
+      const weekWerkRijen = weekWorkouts.filter(w => w.set_type !== 'warmup');
 
-      const uniekeWorkoutDagen = new Set(weekWorkouts.map(w => w.date)).size;
-      const weekVolume = weekWorkouts.reduce((acc, w) => acc + (parseFloat(String(w.volume)) || 0), 0);
+      const uniekeWorkouts = telUniekeWorkoutSessies(weekWorkouts);
+      const weekVolume = weekWerkRijen.reduce((acc, w) => acc + (parseFloat(String(w.volume)) || 0), 0);
+      const weekSets = weekWerkRijen.reduce((acc, w) => acc + (Number(w.sets) || 1), 0);
       const weekStat: WeekStat = {
-        workouts:       uniekeWorkoutDagen,
+        workouts:       uniekeWorkouts,
         totaalVolume:   Math.round(weekVolume),
-        minutenGeraamd: weekWorkouts.length * 2, // schatting: 2 min per set
+        totaalSets:     weekSets,
+        minutenGeraamd: weekSets * 2, // schatting: 2 min per werkset
       };
 
-      // ─── Spiergroep verdeling (laatste 7 dagen) ───────────────────────────
+      // ─── Spiergroep verdeling (laatste 7 dagen, zonder warmup) ───────────
       const groepTelMap = new Map<string, number>();
-      for (const w of weekWorkouts) {
+      for (const w of weekWerkRijen) {
         const oef = findExercise(w.exercise);
         if (oef) {
-          groepTelMap.set(oef.groep, (groepTelMap.get(oef.groep) || 0) + (w.sets || 1));
+          groepTelMap.set(oef.groep, (groepTelMap.get(oef.groep) || 0) + (Number(w.sets) || 1));
         }
       }
       const spiergroepVerdeling: SpiergroepVerdeling[] = Array.from(groepTelMap.entries()).map(([groep, sets]) => ({
         groep, sets, kleur: SPIERGROEP_KLEUREN[groep] || '#888888',
       })).sort((a, b) => b.sets - a.sets);
 
-      // ─── Personal Records ─────────────────────────────────────────────────
+      // ─── Personal Records (op basis van echte individuele werksets) ───────
       const prMap = new Map<string, PersonalRecord>();
-      for (const w of workouts ?? []) {
+      for (const w of alleRijen) {
+        if (w.set_type === 'warmup') continue;
         const gewicht = parseFloat(String(w.weight)) || 0;
         const reps    = parseInt(String(w.reps))    || 0;
-        if (gewicht <= 0 && reps <= 0) continue;
+        if (gewicht <= 0 || reps <= 0) continue;
         const eenRM = bereken1RM(gewicht, reps);
         const huidig = prMap.get(w.exercise);
         if (!huidig || eenRM > huidig.eenRM) {
@@ -150,7 +161,7 @@ export function useStatistieken(userId: string | undefined): StatResult {
 
       setData({ heatmap, weekStat, spiergroepVerdeling, prs });
     } catch (err) {
-      setFout((err as Error).message);
+      setFout(vertaalFout(err, 'Kon je statistieken niet ophalen. Probeer het opnieuw.'));
     } finally {
       setLaden(false);
     }

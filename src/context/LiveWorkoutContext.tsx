@@ -10,12 +10,14 @@ export interface LiveSet extends RoutineSet {
   type: SetType;
   completed: boolean;
   vorige?: { reps: number; gewicht: number } | null;
+  rpe?: number | null;
 }
 
 export interface LiveOefening {
   id: string;
   sets: LiveSet[];
-  expanded: boolean;
+  rustTijd?: number;
+  notitie?: string;
 }
 
 export interface LiveWorkoutState {
@@ -33,13 +35,15 @@ interface LiveWorkoutCtx extends LiveWorkoutState {
   startWorkout: (naam: string, routineId: string | null, oefeningen: LiveOefening[]) => void;
   stopWorkout: () => void;
   toggleSet: (oefeningId: string, setId: string) => void;
-  updateSet: (oefeningId: string, setId: string, field: 'reps' | 'gewicht', value: number) => void;
+  updateSet: (oefeningId: string, setId: string, field: 'reps' | 'gewicht' | 'rpe', value: number) => void;
   setSetType: (oefeningId: string, setId: string, type: SetType) => void;
   addSet: (oefeningId: string) => void;
   removeSet: (oefeningId: string, setId: string) => void;
   addOefening: (oefeningId: string) => void;
-  toggleOefening: (oefeningId: string) => void;
+  removeOefening: (oefeningId: string) => void;
+  updateNotitie: (oefeningId: string, notitie: string) => void;
   startRustTimer: (duurSeconden: number) => void;
+  pasRustTimerAan: (deltaSeconden: number) => void;
   stopRustTimer: () => void;
   verlopenTijd: number;
 }
@@ -52,7 +56,7 @@ const initState: LiveWorkoutState = {
   oefeningen: [],
   rustTimerLoopt: false,
   rustTimerResterend: 0,
-  rustTimerDuur: 90,
+  rustTimerDuur: 120,
 };
 
 const LiveWorkoutContext = createContext<LiveWorkoutCtx>({
@@ -66,8 +70,10 @@ const LiveWorkoutContext = createContext<LiveWorkoutCtx>({
   addSet: () => {},
   removeSet: () => {},
   addOefening: () => {},
-  toggleOefening: () => {},
+  removeOefening: () => {},
+  updateNotitie: () => {},
   startRustTimer: () => {},
+  pasRustTimerAan: () => {},
   stopRustTimer: () => {},
 });
 
@@ -77,6 +83,27 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
 
   const workoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const rustTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevResterendRef = useRef(0);
+  const handmatigGestoptRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      prevResterendRef.current > 0 &&
+      state.rustTimerResterend === 0 &&
+      !state.rustTimerLoopt &&
+      !handmatigGestoptRef.current
+    ) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else if (
+      state.rustTimerLoopt &&
+      state.rustTimerResterend > 0 &&
+      state.rustTimerResterend <= 2 &&
+      state.rustTimerResterend !== prevResterendRef.current
+    ) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    prevResterendRef.current = state.rustTimerResterend;
+  }, [state.rustTimerResterend, state.rustTimerLoopt]);
 
   useEffect(() => {
     if (state.isActief && state.startTijd) {
@@ -98,15 +125,16 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
       startTijd: Date.now(),
       routineNaam: naam,
       routineId,
-      oefeningen: oefeningen.map((o, i) => ({ ...o, expanded: i === 0 })),
+      oefeningen,
       rustTimerLoopt: false,
       rustTimerResterend: 0,
-      rustTimerDuur: 90,
+      rustTimerDuur: 120,
     });
   }, []);
 
   const stopWorkout = useCallback(() => {
     if (rustTimerRef.current) clearInterval(rustTimerRef.current);
+    handmatigGestoptRef.current = true;
     setState(initState);
   }, []);
 
@@ -124,14 +152,14 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
     }));
   }, []);
 
-  const updateSet = useCallback((oefeningId: string, setId: string, field: 'reps' | 'gewicht', value: number) => {
+  const updateSet = useCallback((oefeningId: string, setId: string, field: 'reps' | 'gewicht' | 'rpe', value: number) => {
     setState(prev => ({
       ...prev,
       oefeningen: prev.oefeningen.map(o =>
         o.id !== oefeningId ? o : {
           ...o,
           sets: o.sets.map(s =>
-            s.id !== setId ? s : { ...s, [field]: Math.max(0, value) }
+            s.id !== setId ? s : { ...s, [field]: field === 'rpe' ? value : Math.max(0, value) }
           )
         }
       )
@@ -185,7 +213,6 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
       if (prev.oefeningen.some(o => o.id === oefeningId)) return prev;
       const nieuweOefening: LiveOefening = {
         id: oefeningId,
-        expanded: true,
         sets: Array.from({ length: 3 }).map(() => ({
           id: Math.random().toString(36).substring(2, 10),
           reps: 10,
@@ -196,25 +223,30 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
       };
       return {
         ...prev,
-        oefeningen: [
-          ...prev.oefeningen.map(o => ({ ...o, expanded: false })),
-          nieuweOefening,
-        ],
+        oefeningen: [...prev.oefeningen, nieuweOefening],
       };
     });
   }, []);
 
-  const toggleOefening = useCallback((oefeningId: string) => {
+  const removeOefening = useCallback((oefeningId: string) => {
+    setState(prev => ({
+      ...prev,
+      oefeningen: prev.oefeningen.filter(o => o.id !== oefeningId),
+    }));
+  }, []);
+
+  const updateNotitie = useCallback((oefeningId: string, notitie: string) => {
     setState(prev => ({
       ...prev,
       oefeningen: prev.oefeningen.map(o =>
-        o.id !== oefeningId ? o : { ...o, expanded: !o.expanded }
-      )
+        o.id !== oefeningId ? o : { ...o, notitie }
+      ),
     }));
   }, []);
 
   const startRustTimer = useCallback((duurSeconden: number) => {
     if (rustTimerRef.current) clearInterval(rustTimerRef.current);
+    handmatigGestoptRef.current = false;
     setState(prev => ({
       ...prev,
       rustTimerLoopt: true,
@@ -225,19 +257,33 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
       setState(prev => {
         if (prev.rustTimerResterend <= 1) {
           if (rustTimerRef.current) clearInterval(rustTimerRef.current);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           return { ...prev, rustTimerLoopt: false, rustTimerResterend: 0 };
-        }
-        if (prev.rustTimerResterend <= 3) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
         return { ...prev, rustTimerResterend: prev.rustTimerResterend - 1 };
       });
     }, 1000);
   }, []);
 
+  const pasRustTimerAan = useCallback((deltaSeconden: number) => {
+    setState(prev => {
+      if (!prev.rustTimerLoopt) return prev;
+      const nieuwResterend = Math.max(0, prev.rustTimerResterend + deltaSeconden);
+      if (nieuwResterend <= 0) {
+        if (rustTimerRef.current) clearInterval(rustTimerRef.current);
+        return { ...prev, rustTimerLoopt: false, rustTimerResterend: 0 };
+      }
+      const nieuweDuur = Math.max(prev.rustTimerDuur, nieuwResterend);
+      return {
+        ...prev,
+        rustTimerResterend: nieuwResterend,
+        rustTimerDuur: nieuweDuur,
+      };
+    });
+  }, []);
+
   const stopRustTimer = useCallback(() => {
     if (rustTimerRef.current) clearInterval(rustTimerRef.current);
+    handmatigGestoptRef.current = true;
     setState(prev => ({ ...prev, rustTimerLoopt: false, rustTimerResterend: 0 }));
   }, []);
 
@@ -248,8 +294,8 @@ export function LiveWorkoutProvider({ children }: { children: React.ReactNode })
       startWorkout, stopWorkout,
       toggleSet, updateSet, setSetType,
       addSet, removeSet, addOefening,
-      toggleOefening,
-      startRustTimer, stopRustTimer,
+      removeOefening, updateNotitie,
+      startRustTimer, pasRustTimerAan, stopRustTimer,
     }}>
       {children}
     </LiveWorkoutContext.Provider>

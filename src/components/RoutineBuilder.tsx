@@ -145,9 +145,17 @@ function OefeningRij({
   const isPresetActief = REST_OPTIES.some(opt => opt.seconden === huidigeRust);
 
   const bevestigVerwijder = () => {
+    const bericht = `Weet je zeker dat je ${oefInfo?.naam || 'deze oefening'} wilt verwijderen uit de routine?`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(`Oefening verwijderen\n\n${bericht}`)) {
+        onVerwijderOefening(index);
+      }
+      return;
+    }
+
     Alert.alert(
       'Oefening verwijderen',
-      `Weet je zeker dat je ${oefInfo?.naam || 'deze oefening'} wilt verwijderen uit de routine?`,
+      bericht,
       [
         { text: 'Annuleren', style: 'cancel' },
         {

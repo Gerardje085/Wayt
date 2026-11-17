@@ -2,8 +2,11 @@ export interface Profile {
   id: string;
   username: string | null;
   group_type: 'app' | 'gevoel';
+  role?: 'deelnemer' | 'admin';
   created_at: string;
 }
+
+export type SetTypeDB = 'normaal' | 'warmup' | 'dropset' | 'failure';
 
 export interface Workout {
   id: number;
@@ -16,6 +19,15 @@ export interface Workout {
   volume: number;
   work_joules: number;
   is_meting?: boolean;
+  test_moment?: 'baseline' | 'endline' | null;
+  rpe?: number | null;
+  prescribed_weight?: number | null;
+  prescribed_reps?: number | null;
+  prescribed_sets?: number | null;
+  session_id?: string | null;
+  set_number?: number | null;
+  set_type?: SetTypeDB | null;
+  notitie?: string | null;
   created_at?: string;
 }
 
@@ -26,6 +38,7 @@ export interface Voorschrift {
   reps: number;
   weight: number;
   status: 'nieuw' | 'progressie' | 'houden' | 'deload';
+  rationale?: string;
 }
 
 export interface Oefening {
