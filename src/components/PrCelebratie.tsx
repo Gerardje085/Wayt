@@ -1,15 +1,12 @@
-﻿import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  runOnJS,
-  Easing,
-} from 'react-native-reanimated';
+﻿import React, { useEffect } from 'react';
+import {
+  View, Text, StyleSheet, Modal, Pressable, Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useThema } from '../context/ThemeContext';
+import { PrimaryButton } from './ui/PrimaryButton';
+import { RADIUS, SHADOWS } from '../theme/designTokens';
 
 interface PrCelebratieProps {
   zichtbaar: boolean;
@@ -20,65 +17,67 @@ interface PrCelebratieProps {
 
 export default function PrCelebratie({ zichtbaar, oefeningNaam, eenRM, onSluiten }: PrCelebratieProps) {
   const { kleuren } = useThema();
-  const [isActief, setIsActief] = useState(false);
-
-  const overlayOpacity = useSharedValue(0);
-  const cardTranslateY = useSharedValue(400);
 
   useEffect(() => {
-    if (zichtbaar) {
-      setIsActief(true);
+    if (zichtbaar && Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      overlayOpacity.value = withTiming(1, { duration: 200 });
-      cardTranslateY.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
     }
   }, [zichtbaar]);
 
-  const sluitModal = useCallback(() => {
-    overlayOpacity.value = withTiming(0, { duration: 180 });
-    cardTranslateY.value = withTiming(400, { duration: 220, easing: Easing.in(Easing.cubic) }, (finished) => {
-      if (finished) {
-        runOnJS(setIsActief)(false);
-        runOnJS(onSluiten)();
-      }
-    });
-  }, [onSluiten]);
+  useEffect(() => {
+    if (!zichtbaar || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter') onSluiten();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zichtbaar, onSluiten]);
 
-  const overlayAnimStijl = useAnimatedStyle(() => ({
-    opacity: overlayOpacity.value,
-  }));
-
-  const cardAnimStijl = useAnimatedStyle(() => ({
-    transform: [{ translateY: cardTranslateY.value }],
-  }));
-
-  if (!isActief) return null;
+  if (!zichtbaar) return null;
 
   return (
-    <Modal visible={isActief} transparent animationType="none" onRequestClose={sluitModal}>
-      <Animated.View style={[s.overlay, overlayAnimStijl]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={sluitModal} />
+    <Modal
+      visible={zichtbaar}
+      transparent
+      animationType="fade"
+      onRequestClose={onSluiten}
+      statusBarTranslucent
+    >
+      <View style={s.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onSluiten} />
 
-        <Animated.View
-          style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }, cardAnimStijl]}
+        <View
+          style={[
+            s.kaart,
+            {
+              backgroundColor: kleuren.kaart,
+              borderColor: kleuren.waarschuwing + '55',
+            },
+            SHADOWS.forTheme(kleuren.isDark, 'lg'),
+          ]}
         >
-          <View style={[s.icoonRing, { backgroundColor: kleuren.waarschuwing + '22' }]}>
-            <Ionicons name="trophy" size={36} color={kleuren.waarschuwing} />
+          <View style={[s.icoonRing, { backgroundColor: kleuren.waarschuwing + '22', borderColor: kleuren.waarschuwing + '44' }]}>
+            <Ionicons name="trophy" size={34} color={kleuren.waarschuwing} />
           </View>
 
-          <Text style={[s.prTekst, { color: kleuren.waarschuwing }]}>PERSOONLIJK RECORD</Text>
+          <View style={[s.badge, { backgroundColor: kleuren.waarschuwing + '1F' }]}>
+            <Text style={[s.prTekst, { color: kleuren.waarschuwing }]}>PERSOONLIJK RECORD</Text>
+          </View>
+
           <Text style={[s.oefeningTekst, { color: kleuren.tekst }]}>{oefeningNaam}</Text>
 
-          <View style={[s.waardeRij, { backgroundColor: kleuren.achtergrond, borderColor: kleuren.kaartRand }]}>
-            <Text style={[s.waardeLabel, { color: kleuren.tekstGedimpt }]}>Nieuw geschat 1RM</Text>
+          <View style={[s.waardeRij, { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand }]}>
+            <Text style={[s.waardeLabel, { color: kleuren.tekstSecundair }]}>Nieuw geschat 1RM</Text>
             <Text style={[s.waardeGetal, { color: kleuren.waarschuwing }]}>{eenRM} kg</Text>
           </View>
 
-          <Pressable style={[s.sluitenKnop, { backgroundColor: kleuren.accent }]} onPress={sluitModal}>
-            <Text style={s.sluitenTekst}>Ga verder</Text>
-          </Pressable>
-        </Animated.View>
-      </Animated.View>
+          <PrimaryButton
+            titel="Ga verder"
+            onPress={onSluiten}
+            volledigeBreedte
+          />
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -92,63 +91,58 @@ const s = StyleSheet.create({
     padding: 24,
   },
   kaart: {
-    borderRadius: 20,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
-    padding: 24,
+    padding: 26,
     alignItems: 'center',
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 360,
   },
   icoonRing: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 14,
   },
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    marginBottom: 10,
+  },
   prTekst: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
-    letterSpacing: 1.5,
-    marginBottom: 6,
+    letterSpacing: 1.3,
   },
   oefeningTekst: {
-    fontSize: 18,
+    fontSize: 19,
     fontFamily: 'Inter_900Black',
     letterSpacing: -0.3,
     textAlign: 'center',
     marginBottom: 16,
   },
   waardeRij: {
-    borderRadius: 12,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     alignItems: 'center',
     alignSelf: 'stretch',
     marginBottom: 20,
   },
   waardeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   waardeGetal: {
-    fontSize: 28,
+    fontSize: 32,
     fontFamily: 'Inter_900Black',
-    letterSpacing: -0.5,
-  },
-  sluitenKnop: {
-    borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 32,
-    alignSelf: 'stretch',
-    alignItems: 'center',
-  },
-  sluitenTekst: {
-    color: '#FFF',
-    fontSize: 15,
-    fontFamily: 'Inter_700Bold',
+    letterSpacing: -0.6,
+    fontVariant: ['tabular-nums'],
   },
 });

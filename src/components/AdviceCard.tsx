@@ -13,37 +13,35 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { getStatusLabel } from '../utils/algorithm';
 import { SkeletonAdviesKaart } from './SkeletonLoader';
-import { useThema } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { RADIUS } from '../theme/designTokens';
 import type { Voorschrift, Workout } from '../types';
 
 interface AdviceCardProps {
-  voorschrift:  Voorschrift | null;
+  voorschrift: Voorschrift | null;
   vorigeSessie: Workout | null;
-  laden:        boolean;
+  laden: boolean;
 }
 
 export default function AdviceCard({ voorschrift, vorigeSessie, laden }: AdviceCardProps) {
-  const { kleuren } = useThema();
   const { profile } = useAuth();
 
-  // Intrede-animatie: slide-up + fade-in
-  const vertaalY  = useSharedValue(20);
+  const vertaalY = useSharedValue(16);
   const opaciteit = useSharedValue(0);
 
   useEffect(() => {
     if (!laden && voorschrift && profile?.group_type === 'app') {
-      vertaalY.value  = withSpring(0,   { damping: 18, stiffness: 200 });
-      opaciteit.value = withTiming(1,   { duration: 400, easing: Easing.out(Easing.quad) });
+      vertaalY.value = withSpring(0, { damping: 18, stiffness: 200 });
+      opaciteit.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
     } else {
-      vertaalY.value  = 20;
+      vertaalY.value = 16;
       opaciteit.value = 0;
     }
   }, [laden, voorschrift, profile?.group_type, vertaalY, opaciteit]);
 
   const animStijl = useAnimatedStyle(() => ({
-    transform:  [{ translateY: vertaalY.value }],
-    opacity:    opaciteit.value,
+    transform: [{ translateY: vertaalY.value }],
+    opacity: opaciteit.value,
   }));
 
   if (profile?.group_type !== 'app') return null;
@@ -51,16 +49,21 @@ export default function AdviceCard({ voorschrift, vorigeSessie, laden }: AdviceC
   if (!voorschrift) return null;
 
   const statusKleuren: Record<string, [string, string]> = {
-    progressie: ['#065F46', '#064E3B'],
-    houden:     ['#1E3A5F', '#1E3A8A'],
-    deload:     ['#7C2D12', '#78350F'],
-    nieuw:      ['#2D1B69', '#1E1B4B'],
+    progressie: ['#065F46', '#047857'],
+    houden: ['#1E3A8A', '#1D4ED8'],
+    deload: ['#9A3412', '#7C2D12'],
+    nieuw: ['#1E40AF', '#2563EB'],
   };
-  const kleuren2 = statusKleuren[voorschrift.status] ?? statusKleuren.nieuw;
+  const gradientKleuren = statusKleuren[voorschrift.status] ?? statusKleuren.nieuw;
 
   return (
     <Animated.View style={animStijl}>
-      <LinearGradient colors={kleuren2} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={stijlen.kaart}>
+      <LinearGradient
+        colors={gradientKleuren}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={stijlen.kaart}
+      >
         <Text style={stijlen.kopLabel}>JOUW DOEL VOOR VANDAAG</Text>
 
         <Text style={stijlen.doelTekst}>
@@ -91,52 +94,49 @@ export default function AdviceCard({ voorschrift, vorigeSessie, laden }: AdviceC
 
 const stijlen = StyleSheet.create({
   kaart: {
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.14)',
   },
   kopLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 1.4,
+    color: 'rgba(255,255,255,0.72)',
     fontFamily: 'Inter_700Bold',
     marginBottom: 10,
   },
   doelTekst: {
     fontSize: 20,
-    fontWeight: '600',
     color: '#FFFFFF',
     lineHeight: 28,
     fontFamily: 'Inter_600SemiBold',
     marginBottom: 8,
   },
   accentTekst: {
-    color: '#C4B5FD',
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
+    color: '#BFDBFE',
+    fontFamily: 'Inter_900Black',
   },
   statusTekst: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.82)',
     fontFamily: 'Inter_400Regular',
     marginBottom: 12,
   },
   vorigeRij: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: 'rgba(255,255,255,0.16)',
     paddingTop: 10,
     marginTop: 4,
   },
   vorigeTekst: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
+    color: 'rgba(255,255,255,0.68)',
     fontFamily: 'Inter_400Regular',
   },
   vorigeWaarde: {
-    color: 'rgba(255,255,255,0.8)',
+    color: '#FFFFFF',
     fontFamily: 'Inter_600SemiBold',
   },
 });

@@ -1,17 +1,14 @@
-﻿import React, { useEffect, useState, useCallback } from 'react';
+﻿import React from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, StyleSheet, Pressable,
+  View, Text, TouchableOpacity, StyleSheet, Platform, type ViewStyle,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  runOnJS,
-  Easing,
-} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useThema } from '../context/ThemeContext';
 import { formatTijd } from '../context/LiveWorkoutContext';
+import { BottomSheet } from './ui/BottomSheet';
+import { RADIUS } from '../theme/designTokens';
+
+const WEB_POINTER = Platform.OS === 'web' ? ({ cursor: 'pointer' } as ViewStyle) : undefined;
 
 export interface WorkoutSamenvattingData {
   duurSeconden: number;
@@ -30,131 +27,92 @@ interface WorkoutSamenvattingProps {
 
 export default function WorkoutSamenvatting({ zichtbaar, data, onOpslaan, onAnnuleren }: WorkoutSamenvattingProps) {
   const { kleuren } = useThema();
-  const [isActief, setIsActief] = useState(false);
-
-  const overlayOpacity = useSharedValue(0);
-  const sheetTranslateY = useSharedValue(500);
-
-  useEffect(() => {
-    if (zichtbaar) {
-      setIsActief(true);
-      overlayOpacity.value = withTiming(1, { duration: 200 });
-      sheetTranslateY.value = withTiming(0, { duration: 250, easing: Easing.out(Easing.cubic) });
-    }
-  }, [zichtbaar]);
-
-  const sluitModal = useCallback((actie: 'opslaan' | 'annuleren') => {
-    overlayOpacity.value = withTiming(0, { duration: 180 });
-    sheetTranslateY.value = withTiming(500, { duration: 220, easing: Easing.in(Easing.cubic) }, (finished) => {
-      if (finished) {
-        runOnJS(setIsActief)(false);
-        if (actie === 'opslaan') {
-          runOnJS(onOpslaan)();
-        } else {
-          runOnJS(onAnnuleren)();
-        }
-      }
-    });
-  }, [onOpslaan, onAnnuleren]);
-
-  const overlayAnimStijl = useAnimatedStyle(() => ({
-    opacity: overlayOpacity.value,
-  }));
-
-  const sheetAnimStijl = useAnimatedStyle(() => ({
-    transform: [{ translateY: sheetTranslateY.value }],
-  }));
-
-  if (!isActief) return null;
 
   const stats = [
-    { icoon: 'timer-outline', label: 'Duur', waarde: formatTijd(data.duurSeconden), kleur: kleuren.accent },
+    { icoon: 'timer-outline', label: 'Duur', waarde: formatTijd(data.duurSeconden), kleur: kleuren.accentLicht },
     { icoon: 'checkmark-circle-outline', label: 'Sets voltooid', waarde: String(data.voltooidesets), kleur: kleuren.succes },
-    { icoon: 'trending-up-outline', label: 'Volume', waarde: `${data.totaalVolume.toFixed(0)} kg`, kleur: kleuren.tekstSecundair },
+    { icoon: 'trending-up-outline', label: 'Volume', waarde: `${data.totaalVolume.toFixed(0)} kg`, kleur: kleuren.tekst },
     { icoon: 'flash-outline', label: 'Arbeid', waarde: `${data.totaalJoules.toFixed(0)} J`, kleur: kleuren.waarschuwing },
   ];
 
   return (
-    <Modal visible={isActief} transparent animationType="none" onRequestClose={() => sluitModal('annuleren')}>
-      <Animated.View style={[s.overlay, overlayAnimStijl]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => sluitModal('annuleren')} />
-        <Animated.View
-          style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }, sheetAnimStijl]}
-        >
-          <View style={s.header}>
-            <View style={[s.icoonRing, { backgroundColor: kleuren.succes + '22' }]}>
-              <Ionicons name="barbell-outline" size={28} color={kleuren.succes} />
+    <BottomSheet
+      visible={zichtbaar}
+      onClose={onAnnuleren}
+      maxWidth={500}
+      scrollable
+    >
+      <View style={s.header}>
+        <View style={[s.icoonRing, { backgroundColor: kleuren.succes + '1F' }]}>
+          <Ionicons name="checkmark-done" size={30} color={kleuren.succes} />
+        </View>
+        <Text style={[s.titel, { color: kleuren.tekst }]}>Workout afgerond!</Text>
+        <Text style={[s.subtitel, { color: kleuren.tekstSecundair }]}>
+          Goed gedaan. Controleer je samenvatting en sla op.
+        </Text>
+      </View>
+
+      <View style={s.statGrid}>
+        {stats.map(stat => (
+          <View
+            key={stat.label}
+            style={[s.statKaart, { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand }]}
+          >
+            <View style={[s.statIcoonWrap, { backgroundColor: stat.kleur + '1A' }]}>
+              <Ionicons name={stat.icoon as any} size={18} color={stat.kleur} />
             </View>
-            <Text style={[s.titel, { color: kleuren.tekst }]}>Workout afgerond!</Text>
-            <Text style={[s.subtitel, { color: kleuren.tekstGedimpt }]}>Goed gedaan. Hier is je samenvatting.</Text>
+            <Text style={[s.statWaarde, { color: kleuren.tekst }]}>{stat.waarde}</Text>
+            <Text style={[s.statLabel, { color: kleuren.tekstGedimpt }]}>{stat.label}</Text>
           </View>
+        ))}
+      </View>
 
-          <View style={s.statGrid}>
-            {stats.map(stat => (
-              <View
-                key={stat.label}
-                style={[s.statKaart, { backgroundColor: kleuren.achtergrond, borderColor: kleuren.kaartRand }]}
-              >
-                <Ionicons name={stat.icoon as any} size={20} color={stat.kleur} style={{ marginBottom: 6 }} />
-                <Text style={[s.statWaarde, { color: stat.kleur }]}>{stat.waarde}</Text>
-                <Text style={[s.statLabel, { color: kleuren.tekstGedimpt }]}>{stat.label}</Text>
-              </View>
-            ))}
-          </View>
-
-          {data.prs.length > 0 && (
-            <>
-              <Text style={[s.sectionLabel, { color: kleuren.tekstGedimpt }]}>PERSOONLIJKE RECORDS</Text>
-              {data.prs.map((pr, i) => (
-                <View
-                  key={i}
-                  style={[s.prRij, { backgroundColor: kleuren.waarschuwing + '15', borderColor: kleuren.waarschuwing + '44' }]}
-                >
-                  <Ionicons name="trophy" size={16} color={kleuren.waarschuwing} />
-                  <Text style={[s.prNaam, { color: kleuren.tekst }]}>{pr.oefeningNaam}</Text>
-                  <Text style={[s.prWaarde, { color: kleuren.waarschuwing }]}>{pr.eenRM} kg</Text>
-                </View>
-              ))}
-            </>
-          )}
-
-          <View style={s.knoppen}>
-            <TouchableOpacity
-              style={[s.annulerenKnop, { borderColor: kleuren.kaartRand }]}
-              onPress={() => sluitModal('annuleren')}
+      {data.prs.length > 0 && (
+        <View style={s.prSectie}>
+          <Text style={[s.sectionLabel, { color: kleuren.tekstGedimpt }]}>NIEUWE PERSOONLIJKE RECORDS</Text>
+          {data.prs.map((pr, i) => (
+            <View
+              key={i}
+              style={[s.prRij, { backgroundColor: kleuren.waarschuwing + '16', borderColor: kleuren.waarschuwing + '44' }]}
             >
-              <Text style={[s.annulerenTekst, { color: kleuren.tekstGedimpt }]}>Doorgaan</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.opslaanKnop, { backgroundColor: kleuren.succes }]}
-              onPress={() => sluitModal('opslaan')}
-            >
-              <Ionicons name="checkmark" size={18} color="#FFF" />
-              <Text style={s.opslaanTekst}>Opslaan & Afsluiten</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
+              <Ionicons name="trophy" size={16} color={kleuren.waarschuwing} />
+              <Text style={[s.prNaam, { color: kleuren.tekst }]} numberOfLines={1}>{pr.oefeningNaam}</Text>
+              <Text style={[s.prWaarde, { color: kleuren.waarschuwing }]}>{pr.eenRM} kg</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={s.knoppen}>
+        <TouchableOpacity
+          style={[
+            s.annulerenKnop,
+            { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand },
+            WEB_POINTER,
+          ]}
+          onPress={onAnnuleren}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.annulerenTekst, { color: kleuren.tekstSecundair }]}>Doorgaan</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.opslaanKnop, { backgroundColor: kleuren.succes }, WEB_POINTER]}
+          onPress={onOpslaan}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+          <Text style={s.opslaanTekst}>Opslaan & Afsluiten</Text>
+        </TouchableOpacity>
+      </View>
+    </BottomSheet>
   );
 }
 
 const s = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'flex-end',
-    padding: 16,
-    paddingBottom: 32,
-  },
-  kaart: {
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 24,
-  },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
+    paddingTop: 4,
   },
   icoonRing: {
     width: 64,
@@ -173,42 +131,55 @@ const s = StyleSheet.create({
   subtitel: {
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
   },
   statGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   statKaart: {
     flex: 1,
     minWidth: '44%',
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     padding: 14,
     alignItems: 'center',
   },
+  statIcoonWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
   statWaarde: {
     fontSize: 20,
     fontFamily: 'Inter_900Black',
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
+    fontVariant: ['tabular-nums'],
   },
   statLabel: {
     fontSize: 11,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_600SemiBold',
     marginTop: 2,
+  },
+  prSectie: {
+    marginBottom: 12,
   },
   sectionLabel: {
     fontSize: 10,
     fontFamily: 'Inter_700Bold',
-    letterSpacing: 1.5,
+    letterSpacing: 1.4,
     marginBottom: 10,
   },
   prRij: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 12,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     padding: 12,
     marginBottom: 8,
@@ -221,18 +192,20 @@ const s = StyleSheet.create({
   prWaarde: {
     fontSize: 16,
     fontFamily: 'Inter_900Black',
+    fontVariant: ['tabular-nums'],
   },
   knoppen: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 8,
+    marginTop: 6,
   },
   annulerenKnop: {
     flex: 1,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   annulerenTekst: {
     fontSize: 14,
@@ -240,7 +213,7 @@ const s = StyleSheet.create({
   },
   opslaanKnop: {
     flex: 2,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,7 +221,7 @@ const s = StyleSheet.create({
     gap: 6,
   },
   opslaanTekst: {
-    color: '#FFF',
+    color: '#FFFFFF',
     fontSize: 15,
     fontFamily: 'Inter_700Bold',
   },

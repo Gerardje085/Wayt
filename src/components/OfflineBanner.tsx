@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Wayt – Offline Banner Component
-// Toont een gele banner als de app geen internetverbinding heeft.
+// Toont een amber banner als de app geen internetverbinding heeft.
 // Verdwijnt automatisch zodra de verbinding hersteld is.
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -19,18 +19,18 @@ interface OfflineBannerProps {
 
 export default function OfflineBanner({ offlineAantal = 0 }: OfflineBannerProps) {
   const { isOnline, isControlled } = useNetworkStatus();
-  const hoogte                     = useSharedValue(0);
-  const opaciteit                  = useSharedValue(0);
+  const hoogte = useSharedValue(0);
+  const opaciteit = useSharedValue(0);
 
   useEffect(() => {
     if (!isControlled) return;
     const zichtbaar = !isOnline;
-    hoogte.value    = withTiming(zichtbaar ? 44 : 0, { duration: 300 });
-    opaciteit.value = withTiming(zichtbaar ? 1 : 0, { duration: 300 });
+    hoogte.value = withTiming(zichtbaar ? 42 : 0, { duration: 260 });
+    opaciteit.value = withTiming(zichtbaar ? 1 : 0, { duration: 260 });
   }, [isOnline, isControlled, hoogte, opaciteit]);
 
   const animStijl = useAnimatedStyle(() => ({
-    height:  hoogte.value,
+    height: hoogte.value,
     opacity: opaciteit.value,
     overflow: 'hidden',
   }));
@@ -38,8 +38,8 @@ export default function OfflineBanner({ offlineAantal = 0 }: OfflineBannerProps)
   return (
     <Animated.View style={[stijlen.banner, animStijl]}>
       <Ionicons name="cloud-offline-outline" size={16} color="#FEF3C7" />
-      <Text style={stijlen.tekst}>
-        Geen verbinding – training wordt lokaal opgeslagen
+      <Text style={stijlen.tekst} numberOfLines={1}>
+        Geen verbinding — training wordt lokaal opgeslagen
         {offlineAantal > 0 ? ` (${offlineAantal} wachtend)` : ''}
       </Text>
     </Animated.View>
@@ -49,16 +49,15 @@ export default function OfflineBanner({ offlineAantal = 0 }: OfflineBannerProps)
 const stijlen = StyleSheet.create({
   banner: {
     backgroundColor: '#92400E',
-    flexDirection:   'row',
-    alignItems:      'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 16,
-    gap:             8,
+    gap: 8,
   },
-  icoon: { fontSize: 14 },
   tekst: {
-    flex:       1,
-    fontSize:   12,
-    color:      '#FEF3C7',
+    fontSize: 12,
+    color: '#FEF3C7',
     fontFamily: 'Inter_600SemiBold',
   },
 });

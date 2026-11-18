@@ -2,12 +2,11 @@
 // Wayt – Enhanced Exercise Selector Modal
 // Universal exercise selector with full multi-attribute search and filter drawer.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity,
-  FlatList, TextInput, KeyboardAvoidingView, Platform, Image, ScrollView,
+  View, Text, StyleSheet, Modal, TouchableOpacity, Pressable,
+  FlatList, TextInput, KeyboardAvoidingView, Platform, Image, ScrollView, type ViewStyle,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useThema } from '../context/ThemeContext';
 import {
@@ -20,6 +19,9 @@ import {
   type Apparaat,
 } from '../data/exercises';
 import { GROEP_KLEUR } from '../theme/groepKleuren';
+import { RADIUS, SHADOWS, useResponsive } from '../theme/designTokens';
+
+const WEB_POINTER = Platform.OS === 'web' ? ({ cursor: 'pointer' } as ViewStyle) : undefined;
 
 interface ExerciseSelectorProps {
   zichtbaar: boolean;
@@ -91,169 +93,223 @@ function FilterModal({
   totaalResultaten: number;
   kleuren: any;
 }) {
+  const { isDesktop, isTablet, height } = useResponsive();
+  const isDialog = isDesktop || isTablet;
+
+  useEffect(() => {
+    if (!zichtbaar || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onSluiten();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zichtbaar, onSluiten]);
+
   return (
-    <Modal visible={zichtbaar} animationType="slide" presentationStyle="pageSheet" onRequestClose={onSluiten}>
-      <SafeAreaView style={[fm.container, { backgroundColor: kleuren.achtergrond }]}>
-        {/* Header */}
-        <View style={[fm.header, { borderBottomColor: kleuren.kaartRand }]}>
-          <TouchableOpacity onPress={onSluiten} style={fm.sluitKnop}>
-            <Ionicons name="close" size={24} color={kleuren.tekst} />
-          </TouchableOpacity>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={[fm.headerTitel, { color: kleuren.tekst }]}>Filters & Sorteren</Text>
-            {aantalActieveFilters > 0 && (
-              <Text style={[fm.filterBadgeTekst, { color: kleuren.accent }]}>
-                {aantalActieveFilters} filter{aantalActieveFilters > 1 ? 's' : ''} actief
-              </Text>
+    <Modal
+      visible={zichtbaar}
+      animationType={Platform.OS === 'web' || isDialog ? 'fade' : 'slide'}
+      transparent
+      onRequestClose={onSluiten}
+      statusBarTranslucent
+    >
+      <View style={[stijlen.overlay, isDialog ? stijlen.overlayDialog : stijlen.overlaySheet]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onSluiten} />
+        <View
+          style={[
+            fm.container,
+            {
+              backgroundColor: kleuren.achtergrond,
+              borderColor: kleuren.kaartRand,
+              height: isDialog ? Math.min(height * 0.84, 720) : '90%',
+            },
+            isDialog ? fm.dialogContainer : fm.sheetContainer,
+            SHADOWS.forTheme(kleuren.isDark, 'lg'),
+          ]}
+        >
+          {!isDialog && (
+            <View style={stijlen.handvatWrap}>
+              <View style={[stijlen.handvat, { backgroundColor: kleuren.kaartRand }]} />
+            </View>
+          )}
+
+          <View style={[fm.header, { borderBottomColor: kleuren.kaartRand }]}>
+            <TouchableOpacity
+              onPress={onSluiten}
+              style={[fm.sluitKnop, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }, WEB_POINTER]}
+            >
+              <Ionicons name="close" size={18} color={kleuren.tekstSecundair} />
+            </TouchableOpacity>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={[fm.headerTitel, { color: kleuren.tekst }]}>Filters & Sorteren</Text>
+              {aantalActieveFilters > 0 && (
+                <Text style={[fm.filterBadgeTekst, { color: kleuren.accentLicht }]}>
+                  {aantalActieveFilters} filter{aantalActieveFilters > 1 ? 's' : ''} actief
+                </Text>
+              )}
+            </View>
+            {aantalActieveFilters > 0 ? (
+              <TouchableOpacity onPress={onReset} style={WEB_POINTER}>
+                <Text style={{ color: kleuren.fout, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Reset</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 34 }} />
             )}
           </View>
-          {aantalActieveFilters > 0 ? (
-            <TouchableOpacity onPress={onReset}>
-              <Text style={{ color: kleuren.fout, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Reset</Text>
+
+          <ScrollView style={fm.inhoud} showsVerticalScrollIndicator={false}>
+            <Text style={[fm.sectieTitel, { color: kleuren.tekstGedimpt }]}>SPIERGROEP</Text>
+            <View style={fm.chipGrid}>
+              <TouchableOpacity
+                style={[
+                  fm.chip,
+                  {
+                    backgroundColor: !actieveGroep ? kleuren.accent : kleuren.kaart,
+                    borderColor: !actieveGroep ? kleuren.accent : kleuren.kaartRand,
+                  },
+                  WEB_POINTER,
+                ]}
+                onPress={() => setActieveGroep(null)}
+              >
+                <Text style={[fm.chipTekst, { color: !actieveGroep ? '#FFFFFF' : kleuren.tekstSecundair }]}>Alles</Text>
+              </TouchableOpacity>
+              {SPIERGROEPEN.map((g) => {
+                const actief = actieveGroep === g;
+                const kleur = GROEP_KLEUR[g] || kleuren.accent;
+                return (
+                  <TouchableOpacity
+                    key={g}
+                    style={[
+                      fm.chip,
+                      {
+                        backgroundColor: actief ? kleur : kleuren.kaart,
+                        borderColor: actief ? kleur : kleuren.kaartRand,
+                      },
+                      WEB_POINTER,
+                    ]}
+                    onPress={() => setActieveGroep(actief ? null : g)}
+                  >
+                    <Text style={[fm.chipTekst, { color: actief ? '#FFFFFF' : kleuren.tekstSecundair }]}>{g}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={[fm.sectieTitel, { color: kleuren.tekstGedimpt }]}>APPARAAT / MATERIAAL</Text>
+            <View style={fm.chipGrid}>
+              {APPARATEN.map((app) => {
+                const actief = actiefApparaat === app.waarde;
+                return (
+                  <TouchableOpacity
+                    key={app.label}
+                    style={[
+                      fm.chip,
+                      {
+                        backgroundColor: actief ? kleuren.accent : kleuren.kaart,
+                        borderColor: actief ? kleuren.accent : kleuren.kaartRand,
+                      },
+                      WEB_POINTER,
+                    ]}
+                    onPress={() => setActiefApparaat(app.waarde)}
+                  >
+                    <Text style={[fm.chipTekst, { color: actief ? '#FFFFFF' : kleuren.tekstSecundair }]}>{app.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={[fm.sectieTitel, { color: kleuren.tekstGedimpt }]}>DOELSPIER</Text>
+            <View style={fm.chipGrid}>
+              {POPULAIRE_DOELEN.map((d) => {
+                const actief = actiefDoel === d.target;
+                return (
+                  <TouchableOpacity
+                    key={d.label}
+                    style={[
+                      fm.chip,
+                      {
+                        backgroundColor: actief ? kleuren.accent : kleuren.kaart,
+                        borderColor: actief ? kleuren.accent : kleuren.kaartRand,
+                      },
+                      WEB_POINTER,
+                    ]}
+                    onPress={() => setActiefDoel(d.target)}
+                  >
+                    <Text style={[fm.chipTekst, { color: actief ? '#FFFFFF' : kleuren.tekstSecundair }]}>{d.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={[fm.sectieTitel, { color: kleuren.tekstGedimpt }]}>SORTEER OP</Text>
+            <View style={fm.sorteerLijst}>
+              {[
+                { id: 'naam_az', label: 'Alfabetisch (A – Z)', icoon: 'text-outline' },
+                { id: 'spiergroep', label: 'Op Spiergroep', icoon: 'body-outline' },
+                { id: 'apparaat', label: 'Op Apparaat / Materiaal', icoon: 'barbell-outline' },
+              ].map((opt) => {
+                const actief = sortering === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[
+                      fm.sorteerRij,
+                      {
+                        backgroundColor: actief ? kleuren.accentGedimpt : kleuren.kaart,
+                        borderColor: actief ? kleuren.accent : kleuren.kaartRand,
+                      },
+                      WEB_POINTER,
+                    ]}
+                    onPress={() => setSortering(opt.id as SorteerOptie)}
+                  >
+                    <Ionicons
+                      name={opt.icoon as any}
+                      size={18}
+                      color={actief ? kleuren.accentLicht : kleuren.tekstGedimpt}
+                      style={{ marginRight: 10 }}
+                    />
+                    <Text style={[fm.sorteerTekst, { color: actief ? kleuren.tekst : kleuren.tekstSecundair }]}>
+                      {opt.label}
+                    </Text>
+                    {actief && <Ionicons name="checkmark-circle" size={18} color={kleuren.accentLicht} style={{ marginLeft: 'auto' }} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={{ height: 32 }} />
+          </ScrollView>
+
+          <View style={[fm.footer, { borderTopColor: kleuren.kaartRand, backgroundColor: kleuren.achtergrond }]}>
+            <TouchableOpacity style={[fm.toepasKnop, { backgroundColor: kleuren.accent }, WEB_POINTER]} onPress={onSluiten}>
+              <Text style={fm.toepasTekst}>Toon {totaalResultaten} oefeningen</Text>
             </TouchableOpacity>
-          ) : (
-            <View style={{ width: 40 }} />
-          )}
+          </View>
         </View>
-
-        <ScrollView style={fm.inhoud} showsVerticalScrollIndicator={false}>
-          {/* Spiergroep */}
-          <Text style={[fm.sectieTitel, { color: kleuren.accent }]}>SPIERGROEP</Text>
-          <View style={fm.chipGrid}>
-            <TouchableOpacity
-              style={[
-                fm.chip,
-                {
-                  backgroundColor: !actieveGroep ? kleuren.accent : kleuren.kaart,
-                  borderColor: !actieveGroep ? kleuren.accent : kleuren.kaartRand,
-                },
-              ]}
-              onPress={() => setActieveGroep(null)}
-            >
-              <Text style={[fm.chipTekst, { color: !actieveGroep ? '#FFF' : kleuren.tekstGedimpt }]}>Alles</Text>
-            </TouchableOpacity>
-            {SPIERGROEPEN.map((g) => {
-              const actief = actieveGroep === g;
-              const kleur = GROEP_KLEUR[g] || kleuren.accent;
-              return (
-                <TouchableOpacity
-                  key={g}
-                  style={[
-                    fm.chip,
-                    {
-                      backgroundColor: actief ? kleur : kleuren.kaart,
-                      borderColor: actief ? kleur : kleuren.kaartRand,
-                    },
-                  ]}
-                  onPress={() => setActieveGroep(actief ? null : g)}
-                >
-                  <Text style={[fm.chipTekst, { color: actief ? '#FFF' : kleuren.tekstGedimpt }]}>{g}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Apparaat */}
-          <Text style={[fm.sectieTitel, { color: kleuren.accent }]}>APPARAAT / MATERIAAL</Text>
-          <View style={fm.chipGrid}>
-            {APPARATEN.map((app) => {
-              const actief = actiefApparaat === app.waarde;
-              return (
-                <TouchableOpacity
-                  key={app.label}
-                  style={[
-                    fm.chip,
-                    {
-                      backgroundColor: actief ? kleuren.accent : kleuren.kaart,
-                      borderColor: actief ? kleuren.accent : kleuren.kaartRand,
-                    },
-                  ]}
-                  onPress={() => setActiefApparaat(app.waarde)}
-                >
-                  <Text style={[fm.chipTekst, { color: actief ? '#FFF' : kleuren.tekstGedimpt }]}>{app.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Doelspier */}
-          <Text style={[fm.sectieTitel, { color: kleuren.accent }]}>DOELSPIER (TARGET)</Text>
-          <View style={fm.chipGrid}>
-            {POPULAIRE_DOELEN.map((d) => {
-              const actief = actiefDoel === d.target;
-              return (
-                <TouchableOpacity
-                  key={d.label}
-                  style={[
-                    fm.chip,
-                    {
-                      backgroundColor: actief ? kleuren.accent : kleuren.kaart,
-                      borderColor: actief ? kleuren.accent : kleuren.kaartRand,
-                    },
-                  ]}
-                  onPress={() => setActiefDoel(d.target)}
-                >
-                  <Text style={[fm.chipTekst, { color: actief ? '#FFF' : kleuren.tekstGedimpt }]}>{d.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Sortering */}
-          <Text style={[fm.sectieTitel, { color: kleuren.accent }]}>SORTEER OP</Text>
-          <View style={fm.sorteerLijst}>
-            {[
-              { id: 'naam_az', label: 'Alfabetisch (A – Z)', icoon: 'text-outline' },
-              { id: 'spiergroep', label: 'Op Spiergroep', icoon: 'body-outline' },
-              { id: 'apparaat', label: 'Op Apparaat / Materiaal', icoon: 'barbell-outline' },
-            ].map((opt) => {
-              const actief = sortering === opt.id;
-              return (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[
-                    fm.sorteerRij,
-                    {
-                      backgroundColor: actief ? kleuren.accentGedimpt : kleuren.kaart,
-                      borderColor: actief ? kleuren.accent : kleuren.kaartRand,
-                    },
-                  ]}
-                  onPress={() => setSortering(opt.id as SorteerOptie)}
-                >
-                  <Ionicons
-                    name={opt.icoon as any}
-                    size={18}
-                    color={actief ? kleuren.accent : kleuren.tekstGedimpt}
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text style={[fm.sorteerTekst, { color: actief ? kleuren.accent : kleuren.tekst }]}>{opt.label}</Text>
-                  {actief && <Ionicons name="checkmark" size={18} color={kleuren.accent} style={{ marginLeft: 'auto' }} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={{ height: 40 }} />
-        </ScrollView>
-
-        {/* Footer */}
-        <View style={[fm.footer, { borderTopColor: kleuren.kaartRand, backgroundColor: kleuren.achtergrond }]}>
-          <TouchableOpacity style={[fm.toepasKnop, { backgroundColor: kleuren.accent }]} onPress={onSluiten}>
-            <Text style={fm.toepasTekst}>Toon {totaalResultaten} oefeningen</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
 
 export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecteer, onSluiten }: ExerciseSelectorProps) {
   const { kleuren } = useThema();
+  const { isDesktop, isTablet, height } = useResponsive();
+  const isDialog = isDesktop || isTablet;
+
   const [zoekterm, setZoekterm] = useState('');
   const [actieveGroep, setActieveGroep] = useState<Spiergroep | null>(null);
   const [actiefApparaat, setActiefApparaat] = useState<Apparaat | null>(null);
   const [actiefDoel, setActiefDoel] = useState<string | null>(null);
   const [sortering, setSortering] = useState<SorteerOptie>('naam_az');
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!zichtbaar || filterModalOpen || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onSluiten();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zichtbaar, filterModalOpen, onSluiten]);
 
   const aantalActieveFilters = useMemo(() => {
     let n = 0;
@@ -317,23 +373,57 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
   }
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" transparent={true} onRequestClose={onSluiten}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={stijlen.overlay}>
-        <View style={[stijlen.modalContainer, { backgroundColor: kleuren.achtergrond }]}>
-          {/* Header */}
+    <Modal
+      visible={zichtbaar}
+      animationType={Platform.OS === 'web' || isDialog ? 'fade' : 'slide'}
+      transparent
+      onRequestClose={onSluiten}
+      statusBarTranslucent
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={[stijlen.overlay, isDialog ? stijlen.overlayDialog : stijlen.overlaySheet]}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onSluiten} />
+
+        <View
+          style={[
+            stijlen.modalContainer,
+            {
+              backgroundColor: kleuren.achtergrond,
+              borderColor: kleuren.kaartRand,
+              height: isDialog ? Math.min(height * 0.86, 780) : '88%',
+            },
+            isDialog ? stijlen.dialogContainer : stijlen.sheetContainer,
+            SHADOWS.forTheme(kleuren.isDark, 'lg'),
+          ]}
+        >
+          {!isDialog && (
+            <View style={stijlen.handvatWrap}>
+              <View style={[stijlen.handvat, { backgroundColor: kleuren.kaartRand }]} />
+            </View>
+          )}
+
           <View style={[stijlen.header, { borderBottomColor: kleuren.kaartRand }]}>
             <View>
-              <Text style={[stijlen.headerTitel, { color: kleuren.tekst }]}>Kies een Oefening</Text>
-              <Text style={[stijlen.headerSub, { color: kleuren.tekstGedimpt }]}>
+              <Text style={[stijlen.headerTitel, { color: kleuren.tekst }]}>Kies een oefening</Text>
+              <Text style={[stijlen.headerSub, { color: kleuren.tekstSecundair }]}>
                 {gefilterdeOefeningen.length} van {OEFENINGEN_DB.length} oefeningen
               </Text>
             </View>
-            <TouchableOpacity onPress={onSluiten} style={stijlen.sluitKnop}>
-              <Ionicons name="close" size={24} color={kleuren.tekstGedimpt} />
+            <TouchableOpacity
+              onPress={onSluiten}
+              style={[
+                stijlen.sluitKnop,
+                { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand },
+                WEB_POINTER,
+              ]}
+              accessibilityLabel="Sluiten"
+            >
+              <Ionicons name="close" size={18} color={kleuren.tekstSecundair} />
             </TouchableOpacity>
           </View>
 
-          {/* Zoekbalk + Filter Drawer Knop */}
           <View style={stijlen.zoekRij}>
             <View style={[stijlen.zoekContainer, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
               <Ionicons name="search" size={18} color={kleuren.tekstGedimpt} style={stijlen.zoekIcoon} />
@@ -359,19 +449,19 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
                   backgroundColor: aantalActieveFilters > 0 ? kleuren.accent : kleuren.kaart,
                   borderColor: aantalActieveFilters > 0 ? kleuren.accent : kleuren.kaartRand,
                 },
+                WEB_POINTER,
               ]}
               onPress={() => setFilterModalOpen(true)}
             >
-              <Ionicons name="options-outline" size={20} color={aantalActieveFilters > 0 ? '#FFF' : kleuren.tekst} />
+              <Ionicons name="options-outline" size={20} color={aantalActieveFilters > 0 ? '#FFFFFF' : kleuren.tekst} />
               {aantalActieveFilters > 0 && (
-                <View style={[stijlen.filterBadge, { backgroundColor: '#FFF' }]}>
+                <View style={[stijlen.filterBadge, { backgroundColor: '#FFFFFF' }]}>
                   <Text style={[stijlen.filterBadgeTekst, { color: kleuren.accent }]}>{aantalActieveFilters}</Text>
                 </View>
               )}
             </TouchableOpacity>
           </View>
 
-          {/* Horizontale Spiergroep Chips */}
           <View style={{ height: 42, marginBottom: 6 }}>
             <FlatList
               horizontal
@@ -392,33 +482,34 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
                         backgroundColor: isActief ? kleur : kleuren.kaart,
                         borderColor: isActief ? kleur : kleuren.kaartRand,
                       },
+                      WEB_POINTER,
                     ]}
                     onPress={() => setActieveGroep(isAlles ? null : (actieveGroep === g ? null : (g as Spiergroep)))}
                   >
-                    <Text style={[stijlen.chipTekst, { color: isActief ? '#FFF' : kleuren.tekstGedimpt }]}>{g}</Text>
+                    <Text style={[stijlen.chipTekst, { color: isActief ? '#FFFFFF' : kleuren.tekstSecundair }]}>
+                      {g}
+                    </Text>
                   </TouchableOpacity>
                 );
               }}
             />
           </View>
 
-          {/* Actieve Filter Tag Bar */}
           {aantalActieveFilters > 0 && (
             <View style={[stijlen.actieveFiltersBalk, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
               <Text style={[stijlen.actieveFiltersTekst, { color: kleuren.tekst }]} numberOfLines={1}>
                 Filters:{' '}
-                {actieveGroep ? <Text style={{ color: kleuren.accent }}>{actieveGroep} </Text> : null}
-                {actiefApparaat ? <Text style={{ color: kleuren.accent }}>• {actiefApparaat} </Text> : null}
-                {actiefDoel ? <Text style={{ color: kleuren.accent }}>• {formatTargetDutch(actiefDoel)} </Text> : null}
-                {sortering !== 'naam_az' ? <Text style={{ color: kleuren.accent }}>• gesorteerd </Text> : null}
+                {actieveGroep ? <Text style={{ color: kleuren.accentLicht }}>{actieveGroep} </Text> : null}
+                {actiefApparaat ? <Text style={{ color: kleuren.accentLicht }}>• {actiefApparaat} </Text> : null}
+                {actiefDoel ? <Text style={{ color: kleuren.accentLicht }}>• {formatTargetDutch(actiefDoel)} </Text> : null}
+                {sortering !== 'naam_az' ? <Text style={{ color: kleuren.accentLicht }}>• gesorteerd </Text> : null}
               </Text>
-              <TouchableOpacity onPress={resetAlleFilters}>
+              <TouchableOpacity onPress={resetAlleFilters} style={WEB_POINTER}>
                 <Text style={[stijlen.resetTekst, { color: kleuren.fout }]}>Wis filters</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* Lijst van Oefeningen */}
           <FlatList
             data={gefilterdeOefeningen}
             keyExtractor={(item) => item.id}
@@ -437,8 +528,10 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
                     stijlen.oefeningRij,
                     { borderBottomColor: kleuren.kaartRand },
                     isActief && { backgroundColor: kleuren.accentGedimpt },
+                    WEB_POINTER,
                   ]}
                   onPress={() => handleSelect(item.id)}
+                  activeOpacity={0.75}
                 >
                   <View style={[stijlen.thumbContainer, { backgroundColor: '#FFFFFF', borderColor: kleuren.kaartRand }]}>
                     {mediaUri ? (
@@ -448,24 +541,27 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
                     )}
                   </View>
                   <View style={stijlen.tekstContainer}>
-                    <Text style={[stijlen.oefeningNaam, { color: isActief ? kleuren.accent : kleuren.tekst }]} numberOfLines={1}>
+                    <Text style={[stijlen.oefeningNaam, { color: isActief ? kleuren.accentLicht : kleuren.tekst }]} numberOfLines={1}>
                       {item.naam || item.name}
                     </Text>
-                    <Text style={[stijlen.oefeningGroep, { color: kleuren.tekstGedimpt }]}>
+                    <Text style={[stijlen.oefeningGroep, { color: kleuren.tekstGedimpt }]} numberOfLines={1}>
                       {item.groep} • {formatTargetDutch(item.target)} • {formatEquipmentDutch(item.equipment)}
                     </Text>
                   </View>
-                  {isActief && <Ionicons name="checkmark-circle" size={22} color={kleuren.accent} />}
+                  {isActief && <Ionicons name="checkmark-circle" size={22} color={kleuren.accentLicht} />}
                 </TouchableOpacity>
               );
             }}
             ListEmptyComponent={
               <View style={stijlen.leegContainer}>
-                <Ionicons name="search-outline" size={40} color={kleuren.tekstGedimpt} />
-                <Text style={[stijlen.leegTekst, { color: kleuren.tekstGedimpt }]}>Geen oefeningen gevonden</Text>
+                <Ionicons name="search-outline" size={38} color={kleuren.tekstGedimpt} />
+                <Text style={[stijlen.leegTekst, { color: kleuren.tekstSecundair }]}>Geen oefeningen gevonden</Text>
                 {aantalActieveFilters > 0 && (
-                  <TouchableOpacity style={[stijlen.resetKnopGroot, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]} onPress={resetAlleFilters}>
-                    <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold' }}>Wis alle filters</Text>
+                  <TouchableOpacity
+                    style={[stijlen.resetKnopGroot, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }, WEB_POINTER]}
+                    onPress={resetAlleFilters}
+                  >
+                    <Text style={{ color: kleuren.accentLicht, fontFamily: 'Inter_600SemiBold' }}>Wis alle filters</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -474,7 +570,6 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
         </View>
       </KeyboardAvoidingView>
 
-      {/* Filter Modal Drawer */}
       <FilterModal
         zichtbaar={filterModalOpen}
         onSluiten={() => setFilterModalOpen(false)}
@@ -498,48 +593,79 @@ export default function ExerciseSelector({ zichtbaar, huidigeSelectie, onSelecte
 const stijlen = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.58)',
+  },
+  overlaySheet: {
     justifyContent: 'flex-end',
   },
+  overlayDialog: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
   modalContainer: {
-    height: '88%',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 16,
+    width: '100%',
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  sheetContainer: {
+    borderTopLeftRadius: RADIUS.xxl,
+    borderTopRightRadius: RADIUS.xxl,
+    borderBottomWidth: 0,
+  },
+  dialogContainer: {
+    maxWidth: 620,
+    borderRadius: RADIUS.xl,
+  },
+  handvatWrap: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+  handvat: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
   },
   headerTitel: {
     fontSize: 18,
     fontFamily: 'Inter_700Bold',
+    letterSpacing: -0.2,
   },
   headerSub: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: 'Inter_400Regular',
     marginTop: 2,
   },
   sluitKnop: {
-    padding: 4,
+    width: 34,
+    height: 34,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   zoekRij: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     marginTop: 12,
-    marginBottom: 8,
+    marginBottom: 10,
     gap: 8,
   },
   zoekContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     paddingHorizontal: 12,
     height: 44,
@@ -555,7 +681,7 @@ const stijlen = StyleSheet.create({
   filterKnop: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -576,15 +702,15 @@ const stijlen = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
   },
   chip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: RADIUS.full,
     borderWidth: 1,
     height: 32,
     justifyContent: 'center',
   },
   chipTekst: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
   },
   actieveFiltersBalk: {
@@ -595,7 +721,7 @@ const stijlen = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
   },
   actieveFiltersTekst: {
@@ -609,12 +735,12 @@ const stijlen = StyleSheet.create({
     marginLeft: 8,
   },
   lijstInhoud: {
-    paddingBottom: 40,
+    paddingBottom: 32,
   },
   oefeningRij: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     gap: 12,
@@ -622,7 +748,7 @@ const stijlen = StyleSheet.create({
   thumbContainer: {
     width: 44,
     height: 44,
-    borderRadius: 10,
+    borderRadius: 11,
     borderWidth: 1,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -634,6 +760,7 @@ const stijlen = StyleSheet.create({
   },
   tekstContainer: {
     flex: 1,
+    minWidth: 0,
   },
   oefeningNaam: {
     fontSize: 14,
@@ -656,14 +783,27 @@ const stijlen = StyleSheet.create({
   resetKnopGroot: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
     marginTop: 4,
   },
 });
 
 const fm = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    width: '100%',
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  sheetContainer: {
+    borderTopLeftRadius: RADIUS.xxl,
+    borderTopRightRadius: RADIUS.xxl,
+    borderBottomWidth: 0,
+  },
+  dialogContainer: {
+    maxWidth: 540,
+    borderRadius: RADIUS.xl,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -672,18 +812,25 @@ const fm = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
   },
-  sluitKnop: { padding: 4 },
+  sluitKnop: {
+    width: 34,
+    height: 34,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitel: { fontSize: 17, fontFamily: 'Inter_700Bold' },
   filterBadgeTekst: { fontSize: 11, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
-  inhoud: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
-  sectieTitel: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1, marginBottom: 10, marginTop: 14 },
+  inhoud: { flex: 1, paddingHorizontal: 20, paddingTop: 14 },
+  sectieTitel: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1.1, marginBottom: 10, marginTop: 14 },
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  chip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1 },
   chipTekst: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   sorteerLijst: { gap: 8, marginBottom: 8 },
-  sorteerRij: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1 },
+  sorteerRij: { flexDirection: 'row', alignItems: 'center', padding: 13, borderRadius: RADIUS.md, borderWidth: 1 },
   sorteerTekst: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   footer: { padding: 16, borderTopWidth: 1 },
-  toepasKnop: { paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
-  toepasTekst: { color: '#FFF', fontSize: 15, fontFamily: 'Inter_700Bold' },
+  toepasKnop: { paddingVertical: 14, borderRadius: RADIUS.md, alignItems: 'center' },
+  toepasTekst: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Inter_700Bold' },
 });

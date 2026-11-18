@@ -4,11 +4,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity,
+  View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity, Platform, type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThema } from '../context/ThemeContext';
 import { findExerciseMatch, type ExerciseDbItem } from '../services/exerciseDb';
+import { RADIUS } from '../theme/designTokens';
+
+const WEB_POINTER = Platform.OS === 'web' ? ({ cursor: 'pointer' } as ViewStyle) : undefined;
 
 interface ExerciseGuideViewProps {
   oefeningId: string;
@@ -23,8 +26,6 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
   const [mediaLaden, setMediaLaden] = useState(true);
   const [mediaFout, setMediaFout] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
-  
-  // Standaard altijd Nederlands ('nl')
   const [actieveTaal, setActieveTaal] = useState<'nl' | 'en'>('nl');
 
   const laadInstructies = async () => {
@@ -43,7 +44,7 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
       } else {
         setFout('Geen visuele instructies gevonden voor deze oefening.');
       }
-    } catch (err) {
+    } catch {
       setFout('Kon instructies niet laden.');
     } finally {
       setLaden(false);
@@ -54,7 +55,6 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
     laadInstructies();
   }, [oefeningId, oefeningNaam]);
 
-  // Huidige stappen: uitsluitend NL of EN
   const huidigeStappen = useMemo(() => {
     if (!data) return [];
     if (data.instruction_steps && data.instruction_steps[actieveTaal]) {
@@ -72,10 +72,10 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
 
   if (laden) {
     return (
-      <View style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-        <View style={[s.mediaContainer, s.skeletonMedia, { backgroundColor: kleuren.achtergrondSecundair }]}>
+      <View style={[s.kaart, { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand }]}>
+        <View style={[s.mediaContainer, s.skeletonMedia, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           <ActivityIndicator color={kleuren.accent} size="small" />
-          <Text style={[s.ladenTekst, { color: kleuren.tekstGedimpt }]}>Instructies laden...</Text>
+          <Text style={[s.ladenTekst, { color: kleuren.tekstSecundair }]}>Instructies laden...</Text>
         </View>
         <View style={{ gap: 8, marginTop: 14 }}>
           <View style={[s.skeletonLijn, { width: '60%', backgroundColor: kleuren.kaartRand }]} />
@@ -88,34 +88,32 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
 
   if (fout || !data) {
     return (
-      <View style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
+      <View style={[s.kaart, { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand }]}>
         <View style={s.foutContainer}>
-          <Ionicons name="barbell-outline" size={36} color={kleuren.tekstGedimpt} />
+          <View style={[s.foutIcoonBadge, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
+            <Ionicons name="barbell-outline" size={28} color={kleuren.tekstGedimpt} />
+          </View>
           <Text style={[s.foutTitel, { color: kleuren.tekst }]}>Geen animatie beschikbaar</Text>
-          <Text style={[s.foutSub, { color: kleuren.tekstGedimpt }]}>
+          <Text style={[s.foutSub, { color: kleuren.tekstSecundair }]}>
             {fout || 'Voor deze oefening zijn momenteel geen instructies beschikbaar.'}
           </Text>
           <TouchableOpacity
-            style={[s.herlaadKnop, { borderColor: kleuren.kaartRand, backgroundColor: kleuren.achtergrond }]}
+            style={[s.herlaadKnop, { borderColor: kleuren.kaartRand, backgroundColor: kleuren.kaart }, WEB_POINTER]}
             onPress={laadInstructies}
           >
-            <Ionicons name="refresh" size={14} color={kleuren.accent} />
-            <Text style={[s.herlaadTekst, { color: kleuren.accent }]}>Opnieuw proberen</Text>
+            <Ionicons name="refresh" size={14} color={kleuren.accentLicht} />
+            <Text style={[s.herlaadTekst, { color: kleuren.accentLicht }]}>Opnieuw proberen</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  const formatStap = (stap: string) => {
-    return stap.replace(/^Step:?\s*\d+\s*:?\s*/i, '').trim();
-  };
-
+  const formatStap = (stap: string) => stap.replace(/^Step:?\s*\d+\s*:?\s*/i, '').trim();
   const mediaBron = !mediaFout && data.gifUrl ? data.gifUrl : data.imageUrl;
 
   return (
-    <View style={[s.kaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-      {/* Visual Movement Animation (GIF / Video) */}
+    <View style={[s.kaart, { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand }]}>
       <View style={[s.mediaContainer, { backgroundColor: '#FFFFFF', borderColor: kleuren.kaartRand }]}>
         {mediaLaden && (
           <View style={[StyleSheet.absoluteFill, s.spinnerOverlay]}>
@@ -143,24 +141,23 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
         )}
       </View>
 
-      {/* Target Muscles & Equipment Badges */}
       <View style={s.badgesContainer}>
         {data.targetMuscles.map(m => (
-          <View key={m} style={[s.badge, { backgroundColor: kleuren.accent + '22', borderColor: kleuren.accent + '55' }]}>
-            <Ionicons name="flash-outline" size={12} color={kleuren.accent} />
-            <Text style={[s.badgeTekst, { color: kleuren.accent }]}>{m.toUpperCase()}</Text>
+          <View key={m} style={[s.badge, { backgroundColor: kleuren.accentGedimpt, borderColor: kleuren.accent + '44' }]}>
+            <Ionicons name="flash-outline" size={12} color={kleuren.accentLicht} />
+            <Text style={[s.badgeTekst, { color: kleuren.accentLicht }]}>{m.toUpperCase()}</Text>
           </View>
         ))}
 
         {data.bodyParts.map(bp => (
-          <View key={bp} style={[s.badge, { backgroundColor: kleuren.kaartRand, borderColor: kleuren.kaartRand }]}>
+          <View key={bp} style={[s.badge, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
             <Ionicons name="body-outline" size={12} color={kleuren.tekstSecundair} />
             <Text style={[s.badgeTekst, { color: kleuren.tekstSecundair }]}>{bp}</Text>
           </View>
         ))}
 
         {data.equipments.map(eq => (
-          <View key={eq} style={[s.badge, { backgroundColor: kleuren.kaartRand, borderColor: kleuren.kaartRand }]}>
+          <View key={eq} style={[s.badge, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
             <Ionicons name="construct-outline" size={12} color={kleuren.tekstSecundair} />
             <Text style={[s.badgeTekst, { color: kleuren.tekstSecundair }]}>{eq}</Text>
           </View>
@@ -173,42 +170,42 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
         ))}
       </View>
 
-      {/* Language Selector: Uitsluitend Nederlands (NL) of Engels (EN) */}
-      <View style={s.taalHeaderRij}>
-        <Text style={[s.instructiesTitel, { color: kleuren.tekstSecundair }]}>STAP-VOOR-STAP UITVOERING</Text>
-        <View style={[s.taalSwitchContainer, { backgroundColor: kleuren.achtergrond, borderColor: kleuren.kaartRand }]}>
+      <View style={[s.taalHeaderRij, { borderTopColor: kleuren.kaartRand }]}>
+        <Text style={[s.instructiesTitel, { color: kleuren.tekstGedimpt }]}>STAP-VOOR-STAP UITVOERING</Text>
+        <View style={[s.taalSwitchContainer, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
           <TouchableOpacity
             style={[
               s.taalKnop,
-              actieveTaal === 'nl' && { backgroundColor: kleuren.accent, borderColor: kleuren.accent },
+              actieveTaal === 'nl' && { backgroundColor: kleuren.accent },
+              WEB_POINTER,
             ]}
             onPress={() => setActieveTaal('nl')}
           >
-            <Text style={[s.taalKnopTekst, { color: actieveTaal === 'nl' ? '#FFF' : kleuren.tekstGedimpt }]}>
+            <Text style={[s.taalKnopTekst, { color: actieveTaal === 'nl' ? '#FFFFFF' : kleuren.tekstSecundair }]}>
               NL
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               s.taalKnop,
-              actieveTaal === 'en' && { backgroundColor: kleuren.accent, borderColor: kleuren.accent },
+              actieveTaal === 'en' && { backgroundColor: kleuren.accent },
+              WEB_POINTER,
             ]}
             onPress={() => setActieveTaal('en')}
           >
-            <Text style={[s.taalKnopTekst, { color: actieveTaal === 'en' ? '#FFF' : kleuren.tekstGedimpt }]}>
+            <Text style={[s.taalKnopTekst, { color: actieveTaal === 'en' ? '#FFFFFF' : kleuren.tekstSecundair }]}>
               EN
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Step-by-Step Instructions */}
       {huidigeStappen.length > 0 ? (
         <View style={s.stappenLijst}>
           {huidigeStappen.map((stap, index) => (
             <View key={index} style={s.stapRij}>
-              <View style={[s.stapNummerBadge, { backgroundColor: kleuren.accent + '1A', borderColor: kleuren.accent + '44' }]}>
-                <Text style={[s.stapNummer, { color: kleuren.accent }]}>{index + 1}</Text>
+              <View style={[s.stapNummerBadge, { backgroundColor: kleuren.accentGedimpt, borderColor: kleuren.accent + '44' }]}>
+                <Text style={[s.stapNummer, { color: kleuren.accentLicht }]}>{index + 1}</Text>
               </View>
               <Text style={[s.stapTekst, { color: kleuren.tekst }]}>
                 {formatStap(stap)}
@@ -222,9 +219,8 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
         </Text>
       )}
 
-      {/* Attribution Footer */}
       {data.attribution && (
-        <View style={s.attributionBox}>
+        <View style={[s.attributionBox, { borderTopColor: kleuren.kaartRand }]}>
           <Text style={[s.attributionTekst, { color: kleuren.tekstGedimpt }]}>
             {data.attribution}
           </Text>
@@ -236,65 +232,48 @@ export default function ExerciseGuideView({ oefeningId, oefeningNaam, data: data
 
 const s = StyleSheet.create({
   kaart: {
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 14,
     overflow: 'hidden',
   },
   mediaContainer: {
     width: '100%',
-    height: 230,
-    borderRadius: 14,
+    height: 224,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  gif: {
-    width: '100%',
-    height: '100%',
-  },
+  gif: { width: '100%', height: '100%' },
   spinnerOverlay: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.75)',
   },
-  mediaFoutBox: {
-    justifyContent: 'center',
+  mediaFoutBox: { justifyContent: 'center', alignItems: 'center', gap: 6 },
+  mediaFoutTekst: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  skeletonMedia: { gap: 10 },
+  ladenTekst: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  skeletonLijn: { height: 12, borderRadius: 6 },
+  foutContainer: { padding: 20, alignItems: 'center', gap: 8 },
+  foutIcoonBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    marginBottom: 4,
   },
-  mediaFoutTekst: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-  },
-  skeletonMedia: {
-    gap: 10,
-  },
-  ladenTekst: {
+  foutTitel: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  foutSub: {
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
-  },
-  skeletonLijn: {
-    height: 12,
-    borderRadius: 6,
-  },
-  foutContainer: {
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  foutTitel: {
-    fontSize: 15,
-    fontFamily: 'Inter_700Bold',
-    marginTop: 4,
-  },
-  foutSub: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 19,
     maxWidth: 280,
   },
   herlaadKnop: {
@@ -303,14 +282,11 @@ const s = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 10,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
     marginTop: 6,
   },
-  herlaadTekst: {
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-  },
+  herlaadTekst: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   badgesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -327,26 +303,17 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  badgeTekst: {
-    fontSize: 11,
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: 0.3,
-  },
+  badgeTekst: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.3 },
   taalHeaderRij: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 4,
     marginBottom: 12,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(128,128,128,0.1)',
   },
-  instructiesTitel: {
-    fontSize: 10,
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: 1.2,
-  },
+  instructiesTitel: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.2 },
   taalSwitchContainer: {
     flexDirection: 'row',
     borderRadius: 8,
@@ -354,58 +321,22 @@ const s = StyleSheet.create({
     padding: 2,
     gap: 2,
   },
-  taalKnop: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  taalKnopTekst: {
-    fontSize: 10,
-    fontFamily: 'Inter_700Bold',
-  },
-  stappenLijst: {
-    gap: 10,
-  },
-  stapRij: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
+  taalKnop: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  taalKnopTekst: { fontSize: 10, fontFamily: 'Inter_700Bold' },
+  stappenLijst: { gap: 10 },
+  stapRij: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   stapNummerBadge: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     borderRadius: 7,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 1,
   },
-  stapNummer: {
-    fontSize: 11,
-    fontFamily: 'Inter_700Bold',
-  },
-  stapTekst: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 19,
-  },
-  geenStappenTekst: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    fontStyle: 'italic',
-    paddingVertical: 8,
-  },
-  attributionBox: {
-    marginTop: 16,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(128,128,128,0.1)',
-  },
-  attributionTekst: {
-    fontSize: 10,
-    fontFamily: 'Inter_400Regular',
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
+  stapNummer: { fontSize: 11, fontFamily: 'Inter_700Bold', fontVariant: ['tabular-nums'] },
+  stapTekst: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 20 },
+  geenStappenTekst: { fontSize: 12, fontFamily: 'Inter_400Regular', fontStyle: 'italic', paddingVertical: 8 },
+  attributionBox: { marginTop: 16, paddingTop: 10, borderTopWidth: 1 },
+  attributionTekst: { fontSize: 10, fontFamily: 'Inter_400Regular', fontStyle: 'italic', textAlign: 'center' },
 });

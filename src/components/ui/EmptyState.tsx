@@ -1,50 +1,116 @@
 import React from 'react';
-import { Text, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThema } from '../../context/ThemeContext';
+import { RADIUS, SHADOWS, SPACING } from '../../theme/designTokens';
 import PrimaryButton from './PrimaryButton';
 
-interface EmptyStateProps {
+export interface EmptyStateProps {
   icoon: keyof typeof Ionicons.glyphMap;
   titel: string;
   subtekst: string;
   actieTekst?: string;
   onActie?: () => void;
+  compact?: boolean;
+  style?: StyleProp<ViewStyle>;
 }
 
-export default function EmptyState({ icoon, titel, subtekst, actieTekst, onActie }: EmptyStateProps) {
+export function EmptyState({
+  icoon,
+  titel,
+  subtekst,
+  actieTekst,
+  onActie,
+  compact = false,
+  style,
+}: EmptyStateProps) {
   const { kleuren } = useThema();
 
   return (
-    <View style={[stijlen.container, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-      <Ionicons name={icoon} size={40} color={kleuren.tekstGedimpt} style={{ marginBottom: 12 }} />
+    <View
+      style={[
+        stijlen.container,
+        compact && stijlen.compactContainer,
+        {
+          backgroundColor: kleuren.kaart,
+          borderColor: kleuren.kaartRand,
+        },
+        SHADOWS.forTheme(kleuren.isDark, 'sm'),
+        style,
+      ]}
+    >
+      <View
+        style={[
+          stijlen.icoonBadge,
+          compact && stijlen.icoonBadgeCompact,
+          { backgroundColor: kleuren.accentGedimpt },
+        ]}
+      >
+        <Ionicons
+          name={icoon}
+          size={compact ? 24 : 28}
+          color={kleuren.accentLicht}
+        />
+      </View>
+
       <Text style={[stijlen.titel, { color: kleuren.tekst }]}>{titel}</Text>
-      <Text style={[stijlen.subtekst, { color: kleuren.tekstGedimpt }]}>{subtekst}</Text>
-      {actieTekst && onActie && (
-        <View style={{ marginTop: 20, alignSelf: 'stretch' }}>
-          <PrimaryButton titel={actieTekst} onPress={onActie} />
+      <Text style={[stijlen.subtekst, { color: kleuren.tekstSecundair }]}>
+        {subtekst}
+      </Text>
+
+      {actieTekst && onActie ? (
+        <View style={stijlen.actieWrapper}>
+          <PrimaryButton titel={actieTekst} onPress={onActie} size="md" />
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
 
+export default EmptyState;
+
 const stijlen = StyleSheet.create({
   container: {
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 32,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.xxl,
     alignItems: 'center',
   },
+  compactContainer: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.xl,
+  },
+  icoonBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.base,
+  },
+  icoonBadgeCompact: {
+    width: 48,
+    height: 48,
+    marginBottom: SPACING.md,
+  },
   titel: {
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: 'Inter_700Bold',
-    marginBottom: 8,
+    letterSpacing: -0.2,
+    textAlign: 'center',
+    marginBottom: 6,
   },
   subtekst: {
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 21,
+    maxWidth: 340,
+  },
+  actieWrapper: {
+    marginTop: SPACING.lg,
+    width: '100%',
+    maxWidth: 260,
   },
 });

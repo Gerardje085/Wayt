@@ -1,12 +1,22 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
-  View, Text, FlatList, StyleSheet,
-  TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Image, ScrollView,
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Platform,
+  Image,
+  ScrollView,
+  type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useThema } from '../../src/context/ThemeContext';
+import { useLiveWorkout } from '../../src/context/LiveWorkoutContext';
 import {
   OEFENINGEN_DB,
   type OefeningDef,
@@ -16,10 +26,22 @@ import {
   getMediaUrl,
   formatEquipmentDutch,
   formatTargetDutch,
-  formatCategoryDutch,
 } from '../../src/data/exercises';
 import { GROEP_KLEUR } from '../../src/theme/groepKleuren';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  BREAKPOINTS,
+  NAV_METRICS,
+  RADIUS,
+  SHADOWS,
+  SPACING,
+  useResponsive,
+} from '../../src/theme/designTokens';
+import ResponsiveContainer from '../../src/components/ui/ResponsiveContainer';
+import ScreenHeader from '../../src/components/ui/ScreenHeader';
+import BottomSheet from '../../src/components/ui/BottomSheet';
+import PrimaryButton from '../../src/components/ui/PrimaryButton';
+import EmptyState from '../../src/components/ui/EmptyState';
+import type { ThemaKleuren } from '../../src/types';
 
 const CUSTOM_KEY = '@wayt_custom_exercises';
 
@@ -52,10 +74,26 @@ const OEFENING_TYPEN: Array<{ type: OefeningType; label: string }> = [
 
 type SorteerModus = 'alfabetisch' | 'groep' | 'apparaat';
 
+const SORTEER_LABELS: Record<SorteerModus, string> = {
+  alfabetisch: 'A-Z',
+  groep: 'Spiergroep',
+  apparaat: 'Apparaat',
+};
+
 function FilterModal({
-  zichtbaar, onSluiten, actieveGroep, setActieveGroep,
-  actiefApparaat, setActiefApparaat, actiefDoel, setActiefDoel,
-  sorteerModus, setSorteerModus, onReset, totaalGevonden, kleuren,
+  zichtbaar,
+  onSluiten,
+  actieveGroep,
+  setActieveGroep,
+  actiefApparaat,
+  setActiefApparaat,
+  actiefDoel,
+  setActiefDoel,
+  sorteerModus,
+  setSorteerModus,
+  onReset,
+  totaalGevonden,
+  kleuren,
 }: {
   zichtbaar: boolean;
   onSluiten: () => void;
@@ -69,236 +107,296 @@ function FilterModal({
   setSorteerModus: (s: SorteerModus) => void;
   onReset: () => void;
   totaalGevonden: number;
-  kleuren: any;
+  kleuren: ThemaKleuren;
 }) {
-  const aantalActieveFilters = (actieveGroep ? 1 : 0) + (actiefApparaat ? 1 : 0) + (actiefDoel ? 1 : 0);
+  const aantalActieveFilters =
+    (actieveGroep ? 1 : 0) + (actiefApparaat ? 1 : 0) + (actiefDoel ? 1 : 0);
+
+  const webPointer: ViewStyle | undefined =
+    Platform.OS === 'web' ? ({ cursor: 'pointer' } as ViewStyle) : undefined;
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" presentationStyle="pageSheet" onRequestClose={onSluiten}>
-      <SafeAreaView style={[fm.container, { backgroundColor: kleuren.achtergrond }]}>
-        <View style={[fm.header, { borderBottomColor: kleuren.kaartRand }]}>
-          <TouchableOpacity onPress={onSluiten} style={fm.sluitKnop}>
-            <Ionicons name="close" size={24} color={kleuren.tekst} />
+    <BottomSheet
+      visible={zichtbaar}
+      onClose={onSluiten}
+      title="Filters & Sorteren"
+      subtitle={
+        aantalActieveFilters > 0
+          ? `${aantalActieveFilters} ${aantalActieveFilters === 1 ? 'filter' : 'filters'} actief`
+          : 'Verfijn de oefeningenbibliotheek'
+      }
+      maxWidth={540}
+      scrollable
+    >
+      <View style={fm.inhoud}>
+        {/* Spiergroep Filter */}
+        <Text style={[fm.sectieTitel, { color: kleuren.tekstSecundair }]}>SPIERGROEP</Text>
+        <View style={fm.grid}>
+          <TouchableOpacity
+            style={[
+              fm.chip,
+              {
+                backgroundColor: !actieveGroep ? kleuren.accent : kleuren.achtergrondSecundair,
+                borderColor: !actieveGroep ? kleuren.accent : kleuren.kaartRand,
+              },
+              webPointer,
+            ]}
+            onPress={() => setActieveGroep(null)}
+          >
+            <Text style={[fm.chipTekst, { color: !actieveGroep ? '#FFFFFF' : kleuren.tekstSecundair }]}>
+              Alle spiergroepen
+            </Text>
           </TouchableOpacity>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={[fm.headerTitel, { color: kleuren.tekst }]}>Filters & Sorteren</Text>
-            {aantalActieveFilters > 0 && (
-              <Text style={[fm.filterBadgeTekst, { color: kleuren.accent }]}>
-                {aantalActieveFilters} filter{aantalActieveFilters > 1 ? 's' : ''} actief
-              </Text>
-            )}
-          </View>
-          {aantalActieveFilters > 0 ? (
-            <TouchableOpacity onPress={onReset}>
-              <Text style={{ color: kleuren.fout, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Reset</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 40 }} />
-          )}
+
+          {SPIERGROEPEN.map((g) => {
+            const isActief = actieveGroep === g;
+            const kleur = GROEP_KLEUR[g] || kleuren.accent;
+            return (
+              <TouchableOpacity
+                key={g}
+                style={[
+                  fm.chip,
+                  {
+                    backgroundColor: isActief ? kleur : kleuren.achtergrondSecundair,
+                    borderColor: isActief ? kleur : kleuren.kaartRand,
+                  },
+                  webPointer,
+                ]}
+                onPress={() => setActieveGroep(isActief ? null : g)}
+              >
+                <View style={[fm.dot, { backgroundColor: isActief ? '#FFFFFF' : kleur }]} />
+                <Text style={[fm.chipTekst, { color: isActief ? '#FFFFFF' : kleuren.tekst }]}>
+                  {g}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          {/* Spiergroep Filter */}
-          <Text style={[fm.sectieTitel, { color: kleuren.tekstSecundair }]}>SPIERGROEP</Text>
-          <View style={fm.grid}>
-            <TouchableOpacity
-              style={[
-                fm.chip,
-                {
-                  backgroundColor: !actieveGroep ? kleuren.accent : kleuren.kaart,
-                  borderColor: !actieveGroep ? kleuren.accent : kleuren.kaartRand,
-                },
-              ]}
-              onPress={() => setActieveGroep(null)}
+        {/* Apparaat Filter */}
+        <Text style={[fm.sectieTitel, { color: kleuren.tekstSecundair, marginTop: 22 }]}>
+          APPARAAT / MATERIAAL
+        </Text>
+        <View style={fm.grid}>
+          <TouchableOpacity
+            style={[
+              fm.chip,
+              {
+                backgroundColor: !actiefApparaat ? kleuren.accent : kleuren.achtergrondSecundair,
+                borderColor: !actiefApparaat ? kleuren.accent : kleuren.kaartRand,
+              },
+              webPointer,
+            ]}
+            onPress={() => setActiefApparaat(null)}
+          >
+            <Text
+              style={[fm.chipTekst, { color: !actiefApparaat ? '#FFFFFF' : kleuren.tekstSecundair }]}
             >
-              <Text style={[fm.chipTekst, { color: !actieveGroep ? '#FFF' : kleuren.tekstGedimpt }]}>Alle spiergroepen</Text>
-            </TouchableOpacity>
-            {SPIERGROEPEN.map(g => {
-              const isActief = actieveGroep === g;
-              const kleur = GROEP_KLEUR[g] || kleuren.accent;
-              return (
-                <TouchableOpacity
-                  key={g}
-                  style={[
-                    fm.chip,
-                    {
-                      backgroundColor: isActief ? kleur : kleuren.kaart,
-                      borderColor: isActief ? kleur : kleuren.kaartRand,
-                    },
-                  ]}
-                  onPress={() => setActieveGroep(isActief ? null : g)}
-                >
-                  <View style={[fm.dot, { backgroundColor: isActief ? '#FFF' : kleur }]} />
-                  <Text style={[fm.chipTekst, { color: isActief ? '#FFF' : kleuren.tekst }]}>{g}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+              Alle apparaten
+            </Text>
+          </TouchableOpacity>
 
-          {/* Apparaat Filter */}
-          <Text style={[fm.sectieTitel, { color: kleuren.tekstSecundair, marginTop: 24 }]}>APPARAAT / MATERIAAL</Text>
-          <View style={fm.grid}>
-            <TouchableOpacity
-              style={[
-                fm.chip,
-                {
-                  backgroundColor: !actiefApparaat ? kleuren.accent : kleuren.kaart,
-                  borderColor: !actiefApparaat ? kleuren.accent : kleuren.kaartRand,
-                },
-              ]}
-              onPress={() => setActiefApparaat(null)}
+          {APPARATEN.map((a) => {
+            const isActief = actiefApparaat === a;
+            return (
+              <TouchableOpacity
+                key={a}
+                style={[
+                  fm.chip,
+                  {
+                    backgroundColor: isActief ? kleuren.accent : kleuren.achtergrondSecundair,
+                    borderColor: isActief ? kleuren.accent : kleuren.kaartRand,
+                  },
+                  webPointer,
+                ]}
+                onPress={() => setActiefApparaat(isActief ? null : a)}
+              >
+                <Text style={[fm.chipTekst, { color: isActief ? '#FFFFFF' : kleuren.tekst }]}>
+                  {a}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Doelspier Filter */}
+        <Text style={[fm.sectieTitel, { color: kleuren.tekstSecundair, marginTop: 22 }]}>
+          DOELSPIER (TARGET)
+        </Text>
+        <View style={fm.grid}>
+          <TouchableOpacity
+            style={[
+              fm.chip,
+              {
+                backgroundColor: !actiefDoel ? kleuren.accent : kleuren.achtergrondSecundair,
+                borderColor: !actiefDoel ? kleuren.accent : kleuren.kaartRand,
+              },
+              webPointer,
+            ]}
+            onPress={() => setActiefDoel(null)}
+          >
+            <Text
+              style={[fm.chipTekst, { color: !actiefDoel ? '#FFFFFF' : kleuren.tekstSecundair }]}
             >
-              <Text style={[fm.chipTekst, { color: !actiefApparaat ? '#FFF' : kleuren.tekstGedimpt }]}>Alle apparaten</Text>
-            </TouchableOpacity>
-            {APPARATEN.map(a => {
-              const isActief = actiefApparaat === a;
-              return (
-                <TouchableOpacity
-                  key={a}
-                  style={[
-                    fm.chip,
-                    {
-                      backgroundColor: isActief ? kleuren.accent : kleuren.kaart,
-                      borderColor: isActief ? kleuren.accent : kleuren.kaartRand,
-                    },
-                  ]}
-                  onPress={() => setActiefApparaat(isActief ? null : a)}
-                >
-                  <Text style={[fm.chipTekst, { color: isActief ? '#FFF' : kleuren.tekst }]}>{a}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+              Alle doelspieren
+            </Text>
+          </TouchableOpacity>
 
-          {/* Doelspier Filter */}
-          <Text style={[fm.sectieTitel, { color: kleuren.tekstSecundair, marginTop: 24 }]}>DOELSPIER (TARGET)</Text>
-          <View style={fm.grid}>
-            <TouchableOpacity
-              style={[
-                fm.chip,
-                {
-                  backgroundColor: !actiefDoel ? kleuren.accent : kleuren.kaart,
-                  borderColor: !actiefDoel ? kleuren.accent : kleuren.kaartRand,
-                },
-              ]}
-              onPress={() => setActiefDoel(null)}
-            >
-              <Text style={[fm.chipTekst, { color: !actiefDoel ? '#FFF' : kleuren.tekstGedimpt }]}>Alle doelspieren</Text>
-            </TouchableOpacity>
-            {POPULAIRE_DOELEN.map(d => {
-              const isActief = actiefDoel === d.id;
-              return (
-                <TouchableOpacity
-                  key={d.id}
-                  style={[
-                    fm.chip,
-                    {
-                      backgroundColor: isActief ? kleuren.accent : kleuren.kaart,
-                      borderColor: isActief ? kleuren.accent : kleuren.kaartRand,
-                    },
-                  ]}
-                  onPress={() => setActiefDoel(isActief ? null : d.id)}
-                >
-                  <Text style={[fm.chipTekst, { color: isActief ? '#FFF' : kleuren.tekst }]}>{d.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {POPULAIRE_DOELEN.map((d) => {
+            const isActief = actiefDoel === d.id;
+            return (
+              <TouchableOpacity
+                key={d.id}
+                style={[
+                  fm.chip,
+                  {
+                    backgroundColor: isActief ? kleuren.accent : kleuren.achtergrondSecundair,
+                    borderColor: isActief ? kleuren.accent : kleuren.kaartRand,
+                  },
+                  webPointer,
+                ]}
+                onPress={() => setActiefDoel(isActief ? null : d.id)}
+              >
+                <Text style={[fm.chipTekst, { color: isActief ? '#FFFFFF' : kleuren.tekst }]}>
+                  {d.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-          {/* Sortering */}
-          <Text style={[fm.sectieTitel, { color: kleuren.tekstSecundair, marginTop: 24 }]}>SORTERING</Text>
-          <View style={fm.grid}>
-            {[
+        {/* Sortering */}
+        <Text style={[fm.sectieTitel, { color: kleuren.tekstSecundair, marginTop: 22 }]}>
+          SORTERING
+        </Text>
+        <View style={fm.grid}>
+          {(
+            [
               { id: 'alfabetisch', label: 'Alfabetisch (A-Z)' },
               { id: 'groep', label: 'Op Spiergroep' },
               { id: 'apparaat', label: 'Op Apparaat' },
-            ].map(s => {
-              const isActief = sorteerModus === s.id;
-              return (
-                <TouchableOpacity
-                  key={s.id}
-                  style={[
-                    fm.chip,
-                    {
-                      backgroundColor: isActief ? kleuren.accent : kleuren.kaart,
-                      borderColor: isActief ? kleuren.accent : kleuren.kaartRand,
-                    },
-                  ]}
-                  onPress={() => setSorteerModus(s.id as SorteerModus)}
-                >
-                  <Text style={[fm.chipTekst, { color: isActief ? '#FFF' : kleuren.tekst }]}>{s.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </ScrollView>
-
-        {/* Toon Resultaten Knop */}
-        <View style={[fm.footer, { borderTopColor: kleuren.kaartRand, backgroundColor: kleuren.kaart }]}>
-          <TouchableOpacity
-            style={[fm.resultatenKnop, { backgroundColor: kleuren.accent }]}
-            onPress={onSluiten}
-          >
-            <Text style={fm.resultatenKnopTekst}>
-              Toon {totaalGevonden} {totaalGevonden === 1 ? 'oefening' : 'oefeningen'}
-            </Text>
-          </TouchableOpacity>
+            ] as Array<{ id: SorteerModus; label: string }>
+          ).map((item) => {
+            const isActief = sorteerModus === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  fm.chip,
+                  {
+                    backgroundColor: isActief ? kleuren.accent : kleuren.achtergrondSecundair,
+                    borderColor: isActief ? kleuren.accent : kleuren.kaartRand,
+                  },
+                  webPointer,
+                ]}
+                onPress={() => setSorteerModus(item.id)}
+              >
+                <Text style={[fm.chipTekst, { color: isActief ? '#FFFFFF' : kleuren.tekst }]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-      </SafeAreaView>
-    </Modal>
+
+        {/* Footer acties */}
+        <View style={[fm.footer, { borderTopColor: kleuren.kaartRand }]}>
+          {aantalActieveFilters > 0 ? (
+            <PrimaryButton
+              titel="Reset"
+              variant="secondary"
+              size="md"
+              volledigeBreedte={false}
+              onPress={onReset}
+            />
+          ) : null}
+          <View style={{ flex: 1 }}>
+            <PrimaryButton
+              titel={`Toon ${totaalGevonden} ${totaalGevonden === 1 ? 'oefening' : 'oefeningen'}`}
+              size="md"
+              onPress={onSluiten}
+            />
+          </View>
+        </View>
+      </View>
+    </BottomSheet>
   );
 }
 
 const fm = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
+  inhoud: {
+    paddingBottom: 6,
   },
-  sluitKnop: { padding: 4 },
-  headerTitel: { fontSize: 16, fontFamily: 'Inter_700Bold' },
-  filterBadgeTekst: { fontSize: 11, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
-  sectieTitel: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginBottom: 10 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sectieTitel: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.1,
+    marginBottom: 10,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
   },
-  dot: { width: 7, height: 7, borderRadius: 4 },
-  chipTekst: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
-  footer: { padding: 16, borderTopWidth: 1 },
-  resultatenKnop: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
-  resultatenKnopTekst: {
-    color: '#FFF',
-    fontSize: 15,
-    fontFamily: 'Inter_700Bold',
+  chipTekst: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
   },
 });
 
 function CustomOefeningModal({
-  zichtbaar, onSluiten, onGemaakt, kleuren,
+  zichtbaar,
+  onSluiten,
+  onGemaakt,
+  kleuren,
 }: {
-  zichtbaar: boolean; onSluiten: () => void; onGemaakt: (o: OefeningDef) => void; kleuren: any;
+  zichtbaar: boolean;
+  onSluiten: () => void;
+  onGemaakt: (o: OefeningDef) => void;
+  kleuren: ThemaKleuren;
 }) {
   const [naam, setNaam] = useState('');
   const [groep, setGroep] = useState<Spiergroep>('Borst');
   const [type, setType] = useState<OefeningType>('gewicht');
+  const [foutTekst, setFoutTekst] = useState<string | null>(null);
+
+  const webPointer: ViewStyle | undefined =
+    Platform.OS === 'web' ? ({ cursor: 'pointer' } as ViewStyle) : undefined;
+
+  const sluitEnReset = () => {
+    setFoutTekst(null);
+    onSluiten();
+  };
 
   const handleMaken = async () => {
-    if (!naam.trim()) { Alert.alert('Vul een naam in'); return; }
+    if (!naam.trim()) {
+      setFoutTekst('Vul eerst een naam in voor je oefening.');
+      return;
+    }
+    setFoutTekst(null);
+
     const custom: OefeningDef = {
       id: `custom_${Date.now()}`,
       name: naam.trim().toLowerCase(),
@@ -323,112 +421,239 @@ function CustomOefeningModal({
       groep,
       type,
       apparaat: type === 'lichaamsgewicht' ? 'Lichaamsgewicht' : 'Barbell',
-      icoon: type === 'tijd' ? 'timer-outline' : type === 'lichaamsgewicht' ? 'body-outline' : 'barbell-outline',
+      icoon:
+        type === 'tijd'
+          ? 'timer-outline'
+          : type === 'lichaamsgewicht'
+            ? 'body-outline'
+            : 'barbell-outline',
       startWaarde: type === 'tijd' ? 60 : type === 'gewicht' ? 20 : 0,
       image_url: '',
       gif_full_url: '',
     };
-    const existing = await AsyncStorage.getItem(CUSTOM_KEY);
-    const list: OefeningDef[] = existing ? JSON.parse(existing) : [];
-    list.push(custom);
-    await AsyncStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
+
+    try {
+      const existing = await AsyncStorage.getItem(CUSTOM_KEY);
+      const list: OefeningDef[] = existing ? JSON.parse(existing) : [];
+      list.push(custom);
+      await AsyncStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
+    } catch {
+      // Fallback: voeg alsnog toe in geheugen
+    }
+
     onGemaakt(custom);
     setNaam('');
     setType('gewicht');
     setGroep('Borst');
+    setFoutTekst(null);
     onSluiten();
   };
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" presentationStyle="pageSheet" onRequestClose={onSluiten}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <SafeAreaView style={[cm.container, { backgroundColor: kleuren.achtergrond }]}>
-          <View style={[cm.header, { borderBottomColor: kleuren.kaartRand }]}>
-            <TouchableOpacity onPress={onSluiten}>
-              <Ionicons name="close" size={24} color={kleuren.tekstGedimpt} />
-            </TouchableOpacity>
-            <Text style={[cm.titel, { color: kleuren.tekst }]}>Custom Oefening</Text>
-            <TouchableOpacity onPress={handleMaken}>
-              <Text style={{ color: kleuren.accent, fontFamily: 'Inter_700Bold', fontSize: 16 }}>Opslaan</Text>
-            </TouchableOpacity>
+    <BottomSheet
+      visible={zichtbaar}
+      onClose={sluitEnReset}
+      title="Custom Oefening"
+      subtitle="Voeg een eigen oefening toe aan je bibliotheek"
+      maxWidth={540}
+      scrollable
+    >
+      <View style={cm.inhoud}>
+        <Text style={[cm.label, { color: kleuren.tekstSecundair, marginTop: 4 }]}>NAAM</Text>
+        <TextInput
+          style={[
+            cm.input,
+            {
+              backgroundColor: kleuren.achtergrondSecundair,
+              borderColor: foutTekst ? kleuren.fout : kleuren.kaartRand,
+              color: kleuren.tekst,
+            },
+          ]}
+          value={naam}
+          onChangeText={(t) => {
+            setNaam(t);
+            if (foutTekst) setFoutTekst(null);
+          }}
+          placeholder="bijv. Bulgarian Split Squat"
+          placeholderTextColor={kleuren.tekstGedimpt}
+          autoFocus
+        />
+
+        {foutTekst ? (
+          <View style={cm.foutRij}>
+            <Ionicons name="alert-circle" size={15} color={kleuren.fout} />
+            <Text style={[cm.foutTekst, { color: kleuren.fout }]}>{foutTekst}</Text>
           </View>
+        ) : null}
 
-          <View style={{ padding: 20 }}>
-            <Text style={[cm.label, { color: kleuren.tekstGedimpt }]}>NAAM</Text>
-            <TextInput
-              style={[cm.input, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand, color: kleuren.tekst }]}
-              value={naam}
-              onChangeText={setNaam}
-              placeholder="bijv. Bulgarian Split Squat"
-              placeholderTextColor={kleuren.tekstGedimpt}
-              autoFocus
-            />
-
-            <Text style={[cm.label, { color: kleuren.tekstGedimpt }]}>TYPE</Text>
-            <View style={cm.groepRaster}>
-              {OEFENING_TYPEN.map(t => (
-                <TouchableOpacity
-                  key={t.type}
-                  style={[cm.groepKnop, {
-                    backgroundColor: type === t.type ? kleuren.accentGedimpt : kleuren.kaart,
-                    borderColor: type === t.type ? kleuren.accent : kleuren.kaartRand,
-                  }]}
-                  onPress={() => setType(t.type)}
+        <Text style={[cm.label, { color: kleuren.tekstSecundair }]}>TYPE</Text>
+        <View style={cm.groepRaster}>
+          {OEFENING_TYPEN.map((t) => {
+            const actief = type === t.type;
+            return (
+              <TouchableOpacity
+                key={t.type}
+                style={[
+                  cm.groepKnop,
+                  {
+                    backgroundColor: actief ? kleuren.accentGedimpt : kleuren.achtergrondSecundair,
+                    borderColor: actief ? kleuren.accent : kleuren.kaartRand,
+                  },
+                  webPointer,
+                ]}
+                onPress={() => setType(t.type)}
+              >
+                <Text
+                  style={{
+                    color: actief ? kleuren.accentLicht : kleuren.tekstSecundair,
+                    fontFamily: 'Inter_600SemiBold',
+                    fontSize: 13,
+                  }}
                 >
-                  <Text style={{ color: type === t.type ? kleuren.accent : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
-                    {t.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-            <Text style={[cm.label, { color: kleuren.tekstGedimpt }]}>SPIERGROEP</Text>
-            <View style={cm.groepRaster}>
-              {SPIERGROEPEN.map(g => (
-                <TouchableOpacity
-                  key={g}
-                  style={[cm.groepKnop, {
-                    backgroundColor: groep === g ? (GROEP_KLEUR[g] || kleuren.accent) + '33' : kleuren.kaart,
-                    borderColor: groep === g ? (GROEP_KLEUR[g] || kleuren.accent) : kleuren.kaartRand,
-                  }]}
-                  onPress={() => setGroep(g)}
+        <Text style={[cm.label, { color: kleuren.tekstSecundair }]}>SPIERGROEP</Text>
+        <View style={cm.groepRaster}>
+          {SPIERGROEPEN.map((g) => {
+            const actief = groep === g;
+            const kleur = GROEP_KLEUR[g] || kleuren.accent;
+            return (
+              <TouchableOpacity
+                key={g}
+                style={[
+                  cm.groepKnop,
+                  {
+                    backgroundColor: actief ? kleur + '24' : kleuren.achtergrondSecundair,
+                    borderColor: actief ? kleur : kleuren.kaartRand,
+                  },
+                  webPointer,
+                ]}
+                onPress={() => setGroep(g)}
+              >
+                <View style={[cm.dot, { backgroundColor: kleur }]} />
+                <Text
+                  style={{
+                    color: actief ? kleur : kleuren.tekstSecundair,
+                    fontFamily: 'Inter_600SemiBold',
+                    fontSize: 13,
+                  }}
                 >
-                  <Text style={{ color: groep === g ? (GROEP_KLEUR[g] || kleuren.accent) : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
-                    {g}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  {g}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={[cm.footer, { borderTopColor: kleuren.kaartRand }]}>
+          <PrimaryButton
+            titel="Annuleren"
+            variant="secondary"
+            volledigeBreedte={false}
+            onPress={sluitEnReset}
+          />
+          <View style={{ flex: 1 }}>
+            <PrimaryButton titel="Oefening opslaan" icoon="checkmark" onPress={handleMaken} />
           </View>
-        </SafeAreaView>
-      </KeyboardAvoidingView>
-    </Modal>
+        </View>
+      </View>
+    </BottomSheet>
   );
 }
 
 const cm = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
-  titel: { fontSize: 16, fontFamily: 'Inter_700Bold' },
-  label: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1, marginBottom: 8, marginTop: 20, textTransform: 'uppercase' },
-  input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16, fontFamily: 'Inter_400Regular', marginBottom: 4 },
-  groepRaster: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  groepKnop: { borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 },
+  inhoud: { paddingBottom: 6 },
+  label: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.1,
+    marginBottom: 8,
+    marginTop: 20,
+    textTransform: 'uppercase',
+  },
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
+  },
+  foutRij: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  foutTekst: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  groepRaster: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  groepKnop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: RADIUS.sm,
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
 });
 
 export default function ExercisesTab() {
   const router = useRouter();
   const { kleuren } = useThema();
+  const { isActief } = useLiveWorkout();
+  const { width, isDesktopNav, contentPadding } = useResponsive();
+  const numColumns = width >= BREAKPOINTS.sidebar ? 2 : 1;
 
   const [zoekterm, setZoekterm] = useState('');
+  const [zoekFocus, setZoekFocus] = useState(false);
   const [actieveGroep, setActieveGroep] = useState<Spiergroep | null>(null);
   const [actiefApparaat, setActiefApparaat] = useState<Apparaat | null>(null);
   const [actiefDoel, setActiefDoel] = useState<string | null>(null);
   const [sorteerModus, setSorteerModus] = useState<SorteerModus>('alfabetisch');
-  
+
   const [filterModal, setFilterModal] = useState(false);
   const [customModal, setCustomModal] = useState(false);
   const [customOef, setCustomOef] = useState<OefeningDef[]>([]);
+
+  const webPointer: ViewStyle | undefined =
+    Platform.OS === 'web' ? ({ cursor: 'pointer' } as ViewStyle) : undefined;
+
+  useEffect(() => {
+    AsyncStorage.getItem(CUSTOM_KEY)
+      .then((raw) => {
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) setCustomOef(parsed);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const alleOefeningen = useMemo(() => {
     return [...OEFENINGEN_DB, ...customOef];
@@ -436,8 +661,9 @@ export default function ExercisesTab() {
 
   const gefilterdeOefeningen = useMemo(() => {
     const q = zoekterm.toLowerCase().trim();
-    let resultaten = alleOefeningen.filter(o => {
-      const matchZoek = !q ||
+    const resultaten = alleOefeningen.filter((o) => {
+      const matchZoek =
+        !q ||
         o.name.toLowerCase().includes(q) ||
         o.naam.toLowerCase().includes(q) ||
         (o.target && o.target.toLowerCase().includes(q)) ||
@@ -448,24 +674,32 @@ export default function ExercisesTab() {
 
       const matchGroep = !actieveGroep || o.groep === actieveGroep;
       const matchApparaat = !actiefApparaat || o.apparaat === actiefApparaat;
-      const matchDoel = !actiefDoel || o.target.toLowerCase() === actiefDoel.toLowerCase() || (o.secondary_muscles && o.secondary_muscles.some(m => m.toLowerCase() === actiefDoel.toLowerCase()));
+      const matchDoel =
+        !actiefDoel ||
+        o.target.toLowerCase() === actiefDoel.toLowerCase() ||
+        (o.secondary_muscles &&
+          o.secondary_muscles.some((m) => m.toLowerCase() === actiefDoel.toLowerCase()));
 
       return matchZoek && matchGroep && matchApparaat && matchDoel;
     });
 
-    // Sorteren
     if (sorteerModus === 'alfabetisch') {
       resultaten.sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
     } else if (sorteerModus === 'groep') {
-      resultaten.sort((a, b) => a.groep.localeCompare(b.groep, 'nl') || a.naam.localeCompare(b.naam, 'nl'));
+      resultaten.sort(
+        (a, b) => a.groep.localeCompare(b.groep, 'nl') || a.naam.localeCompare(b.naam, 'nl')
+      );
     } else if (sorteerModus === 'apparaat') {
-      resultaten.sort((a, b) => a.apparaat.localeCompare(b.apparaat, 'nl') || a.naam.localeCompare(b.naam, 'nl'));
+      resultaten.sort(
+        (a, b) => a.apparaat.localeCompare(b.apparaat, 'nl') || a.naam.localeCompare(b.naam, 'nl')
+      );
     }
 
     return resultaten;
   }, [alleOefeningen, zoekterm, actieveGroep, actiefApparaat, actiefDoel, sorteerModus]);
 
-  const aantalActieveFilters = (actieveGroep ? 1 : 0) + (actiefApparaat ? 1 : 0) + (actiefDoel ? 1 : 0);
+  const aantalActieveFilters =
+    (actieveGroep ? 1 : 0) + (actiefApparaat ? 1 : 0) + (actiefDoel ? 1 : 0);
 
   const resetAlleFilters = useCallback(() => {
     setZoekterm('');
@@ -474,163 +708,338 @@ export default function ExercisesTab() {
     setActiefDoel(null);
   }, []);
 
-  const renderOefening = useCallback(({ item }: { item: OefeningDef }) => {
-    const mediaUri = item.image_url || getMediaUrl(item.image);
+  const renderOefening = useCallback(
+    ({ item }: { item: OefeningDef }) => {
+      const mediaUri = item.image_url || getMediaUrl(item.image);
+      const groepKleur = GROEP_KLEUR[item.groep] || kleuren.accent;
+      const equipmentLabel = formatEquipmentDutch(item.equipment);
 
-    return (
-      <TouchableOpacity
-        style={[s.oefeningRij, { borderBottomColor: kleuren.kaartRand }]}
-        onPress={() => router.push(`/exercise/${item.id}`)}
-      >
-        <View style={[s.thumbContainer, { backgroundColor: '#FFFFFF', borderColor: kleuren.kaartRand }]}>
-          {mediaUri ? (
-            <Image source={{ uri: mediaUri }} style={s.thumbImage} resizeMode="contain" />
-          ) : (
-            <Ionicons name={item.icoon as any} size={18} color={kleuren.accent} />
-          )}
+      return (
+        <View style={numColumns === 2 ? s.gridItemWrapper : s.listItemWrapper}>
+          <TouchableOpacity
+            style={[
+              s.oefeningKaart,
+              {
+                backgroundColor: kleuren.kaart,
+                borderColor: kleuren.kaartRand,
+              },
+              SHADOWS.forTheme(kleuren.isDark, 'sm'),
+              webPointer,
+            ]}
+            onPress={() => router.push(`/exercise/${item.id}`)}
+            activeOpacity={0.78}
+          >
+            <View
+              style={[
+                s.thumbContainer,
+                {
+                  backgroundColor: '#FFFFFF',
+                  borderColor: kleuren.kaartRand,
+                },
+              ]}
+            >
+              {mediaUri ? (
+                <Image source={{ uri: mediaUri }} style={s.thumbImage} resizeMode="contain" />
+              ) : (
+                <Ionicons name={item.icoon as any} size={20} color={groepKleur} />
+              )}
+            </View>
+
+            <View style={s.oefInfo}>
+              <Text style={[s.oefeningNaam, { color: kleuren.tekst }]} numberOfLines={1}>
+                {item.naam || item.name}
+              </Text>
+
+              <View style={s.metaRij}>
+                <View
+                  style={[
+                    s.groepBadge,
+                    {
+                      backgroundColor: groepKleur + '1A',
+                      borderColor: groepKleur + '3D',
+                    },
+                  ]}
+                >
+                  <View style={[s.groepDot, { backgroundColor: groepKleur }]} />
+                  <Text style={[s.groepBadgeTekst, { color: groepKleur }]} numberOfLines={1}>
+                    {item.groep}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    s.apparaatPill,
+                    {
+                      backgroundColor: kleuren.achtergrondSecundair,
+                      borderColor: kleuren.kaartRand,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[s.apparaatPillTekst, { color: kleuren.tekstSecundair }]}
+                    numberOfLines={1}
+                  >
+                    {equipmentLabel}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <Ionicons name="chevron-forward" size={16} color={kleuren.tekstGedimpt} />
+          </TouchableOpacity>
         </View>
-
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={[s.oefeningNaam, { color: kleuren.tekst }]} numberOfLines={1}>
-            {item.naam || item.name}
-          </Text>
-          <Text style={[s.metaTekst, { color: kleuren.tekstGedimpt }]} numberOfLines={1}>
-            {item.groep} • {formatEquipmentDutch(item.equipment)}
-          </Text>
-        </View>
-
-        <Ionicons name="chevron-forward" size={16} color={kleuren.tekstGedimpt} />
-      </TouchableOpacity>
-    );
-  }, [kleuren, router]);
+      );
+    },
+    [kleuren, router, numColumns, webPointer]
+  );
 
   return (
-    <SafeAreaView style={[s.veilig, { backgroundColor: kleuren.achtergrond }]}>
-      {/* Compact Header */}
-      <View style={[s.header, { borderBottomColor: kleuren.kaartRand }]}>
-        <View style={s.headerZij} />
-        <Text style={[s.headerTitel, { color: kleuren.tekst }]}>Oefeningen</Text>
-        <View style={[s.headerZij, { alignItems: 'flex-end' }]}>
-          <TouchableOpacity
-            style={[s.customKnop, { backgroundColor: kleuren.accentGedimpt, borderColor: kleuren.accent + '44' }]}
-            onPress={() => setCustomModal(true)}
-          >
-            <Ionicons name="add" size={15} color={kleuren.accent} />
-            <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>Custom</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Zoekbalk */}
-      <View style={s.zoekRij}>
-        <View style={[s.zoekContainer, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-          <Ionicons name="search-outline" size={18} color={kleuren.tekstGedimpt} style={{ marginRight: 8 }} />
-          <TextInput
-            style={[s.zoekInput, { color: kleuren.tekst }]}
-            placeholder="Zoek oefening, spier of apparaat..."
-            placeholderTextColor={kleuren.tekstGedimpt}
-            value={zoekterm}
-            onChangeText={setZoekterm}
-            autoCorrect={false}
+    <SafeAreaView style={[s.veilig, { backgroundColor: kleuren.achtergrond }]} edges={['top']}>
+      <ResponsiveContainer
+        variant="wide"
+        style={[s.containerFlex, { paddingHorizontal: contentPadding }]}
+      >
+        <View style={s.topSectie}>
+          <ScreenHeader
+            title="Oefeningen"
+            subtitle={`${gefilterdeOefeningen.length} ${
+              gefilterdeOefeningen.length === 1 ? 'oefening' : 'oefeningen'
+            } beschikbaar`}
+            rightAction={
+              <TouchableOpacity
+                style={[
+                  s.customKnop,
+                  {
+                    backgroundColor: kleuren.accentGedimpt,
+                    borderColor: kleuren.accent + '44',
+                  },
+                  webPointer,
+                ]}
+                onPress={() => setCustomModal(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={16} color={kleuren.accentLicht} />
+                <Text style={[s.customKnopTekst, { color: kleuren.accentLicht }]}>Custom</Text>
+              </TouchableOpacity>
+            }
           />
-          {zoekterm.length > 0 && (
-            <TouchableOpacity onPress={() => setZoekterm('')} style={{ padding: 2 }}>
-              <Ionicons name="close-circle" size={18} color={kleuren.tekstGedimpt} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
 
-      {/* Twee strakke filterknoppen onder de zoekbalk */}
-      <View style={s.tweeFilterRij}>
-        <TouchableOpacity
-          style={[
-            s.filterDropdownKnop,
-            {
-              backgroundColor: actieveGroep ? kleuren.accentGedimpt : kleuren.kaart,
-              borderColor: actieveGroep ? kleuren.accent : kleuren.kaartRand,
-            },
-          ]}
-          onPress={() => setFilterModal(true)}
-          activeOpacity={0.8}
-        >
-          <Text
+          {/* Zoekbalk */}
+          <View
             style={[
-              s.filterDropdownTekst,
-              { color: actieveGroep ? kleuren.accentLicht : kleuren.tekstSecundair },
+              s.zoekContainer,
+              {
+                backgroundColor: kleuren.kaart,
+                borderColor: zoekFocus ? kleuren.accent : kleuren.kaartRand,
+                borderWidth: zoekFocus ? 1.5 : 1,
+              },
+              SHADOWS.forTheme(kleuren.isDark, 'sm'),
             ]}
-            numberOfLines={1}
           >
-            {actieveGroep ? `${actieveGroep} ▾` : 'Alle spiergroepen ▾'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            s.filterDropdownKnop,
-            {
-              backgroundColor: actiefApparaat ? kleuren.accentGedimpt : kleuren.kaart,
-              borderColor: actiefApparaat ? kleuren.accent : kleuren.kaartRand,
-            },
-          ]}
-          onPress={() => setFilterModal(true)}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              s.filterDropdownTekst,
-              { color: actiefApparaat ? kleuren.accentLicht : kleuren.tekstSecundair },
-            ]}
-            numberOfLines={1}
-          >
-            {actiefApparaat ? `${actiefApparaat} ▾` : 'Alle apparaten ▾'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Actieve Filter Indicator Balk */}
-      {(aantalActieveFilters > 0 || zoekterm.length > 0) && (
-        <View style={[s.actieveFiltersBalk, { borderBottomColor: kleuren.kaartRand }]}>
-          <Text style={[s.actieveFiltersTekst, { color: kleuren.tekstGedimpt }]}>
-            Filters:{' '}
-            {actieveGroep && <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold' }}>{actieveGroep} </Text>}
-            {actiefApparaat && <Text style={{ color: kleuren.tekstSecundair, fontFamily: 'Inter_600SemiBold' }}>• {actiefApparaat} </Text>}
-            {actiefDoel && <Text style={{ color: kleuren.tekstSecundair, fontFamily: 'Inter_600SemiBold' }}>• {formatTargetDutch(actiefDoel)} </Text>}
-            {zoekterm ? <Text style={{ color: kleuren.tekstGedimpt }}>• "{zoekterm}"</Text> : null}
-          </Text>
-          <TouchableOpacity onPress={resetAlleFilters}>
-            <Text style={[s.resetTekst, { color: kleuren.fout }]}>Wis filters</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Exercise List */}
-      <FlatList
-        data={gefilterdeOefeningen}
-        keyExtractor={item => item.id}
-        renderItem={renderOefening}
-        initialNumToRender={20}
-        maxToRenderPerBatch={25}
-        windowSize={10}
-        removeClippedSubviews={Platform.OS === 'android'}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={s.leegContainer}>
-            <Ionicons name="search-outline" size={48} color={kleuren.tekstGedimpt} />
-            <Text style={[s.leegTitel, { color: kleuren.tekst }]}>Geen oefeningen gevonden</Text>
-            <Text style={[s.leegSub, { color: kleuren.tekstGedimpt }]}>
-              Probeer een andere zoekterm of wis je actieve filters.
-            </Text>
-            <TouchableOpacity
-              style={[s.resetGroteKnop, { backgroundColor: kleuren.accent }]}
-              onPress={resetAlleFilters}
-            >
-              <Text style={s.resetGroteKnopTekst}>Wis alle filters</Text>
-            </TouchableOpacity>
+            <Ionicons
+              name="search-outline"
+              size={19}
+              color={zoekFocus ? kleuren.accentLicht : kleuren.tekstGedimpt}
+              style={{ marginRight: 10 }}
+            />
+            <TextInput
+              style={[s.zoekInput, { color: kleuren.tekst }]}
+              placeholder="Zoek oefening, spiergroep of apparaat..."
+              placeholderTextColor={kleuren.tekstGedimpt}
+              value={zoekterm}
+              onChangeText={setZoekterm}
+              onFocus={() => setZoekFocus(true)}
+              onBlur={() => setZoekFocus(false)}
+              autoCorrect={false}
+            />
+            {zoekterm.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setZoekterm('')}
+                style={[{ padding: 4 }, webPointer]}
+                accessibilityLabel="Wis zoekterm"
+              >
+                <Ionicons name="close-circle" size={18} color={kleuren.tekstGedimpt} />
+              </TouchableOpacity>
+            )}
           </View>
-        }
-      />
+
+          {/* Strakke pill filterrij */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.filterPillsRij}
+          >
+            <TouchableOpacity
+              style={[
+                s.filterPill,
+                {
+                  backgroundColor: actieveGroep ? kleuren.accentGedimpt : kleuren.kaart,
+                  borderColor: actieveGroep ? kleuren.accent : kleuren.kaartRand,
+                },
+                webPointer,
+              ]}
+              onPress={() => setFilterModal(true)}
+              activeOpacity={0.8}
+            >
+              {actieveGroep ? (
+                <View
+                  style={[
+                    s.filterPillDot,
+                    { backgroundColor: GROEP_KLEUR[actieveGroep] || kleuren.accent },
+                  ]}
+                />
+              ) : (
+                <Ionicons name="body-outline" size={14} color={kleuren.tekstSecundair} />
+              )}
+              <Text
+                style={[
+                  s.filterPillTekst,
+                  { color: actieveGroep ? kleuren.accentLicht : kleuren.tekstSecundair },
+                ]}
+              >
+                {actieveGroep ?? 'Spiergroep'}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={14}
+                color={actieveGroep ? kleuren.accentLicht : kleuren.tekstGedimpt}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                s.filterPill,
+                {
+                  backgroundColor: actiefApparaat ? kleuren.accentGedimpt : kleuren.kaart,
+                  borderColor: actiefApparaat ? kleuren.accent : kleuren.kaartRand,
+                },
+                webPointer,
+              ]}
+              onPress={() => setFilterModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="barbell-outline"
+                size={14}
+                color={actiefApparaat ? kleuren.accentLicht : kleuren.tekstSecundair}
+              />
+              <Text
+                style={[
+                  s.filterPillTekst,
+                  { color: actiefApparaat ? kleuren.accentLicht : kleuren.tekstSecundair },
+                ]}
+              >
+                {actiefApparaat ?? 'Apparaat'}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={14}
+                color={actiefApparaat ? kleuren.accentLicht : kleuren.tekstGedimpt}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                s.filterPill,
+                {
+                  backgroundColor:
+                    actiefDoel || sorteerModus !== 'alfabetisch'
+                      ? kleuren.accentGedimpt
+                      : kleuren.kaart,
+                  borderColor:
+                    actiefDoel || sorteerModus !== 'alfabetisch'
+                      ? kleuren.accent
+                      : kleuren.kaartRand,
+                },
+                webPointer,
+              ]}
+              onPress={() => setFilterModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="options-outline"
+                size={14}
+                color={
+                  actiefDoel || sorteerModus !== 'alfabetisch'
+                    ? kleuren.accentLicht
+                    : kleuren.tekstSecundair
+                }
+              />
+              <Text
+                style={[
+                  s.filterPillTekst,
+                  {
+                    color:
+                      actiefDoel || sorteerModus !== 'alfabetisch'
+                        ? kleuren.accentLicht
+                        : kleuren.tekstSecundair,
+                  },
+                ]}
+              >
+                Sorteer: {SORTEER_LABELS[sorteerModus]}
+              </Text>
+              {aantalActieveFilters > 0 ? (
+                <View style={[s.filterCountBadge, { backgroundColor: kleuren.accent }]}>
+                  <Text style={s.filterCountTekst}>{aantalActieveFilters}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+
+            {(aantalActieveFilters > 0 || zoekterm.length > 0) && (
+              <TouchableOpacity
+                style={[
+                  s.resetPill,
+                  {
+                    backgroundColor: kleuren.fout + '14',
+                    borderColor: kleuren.fout + '40',
+                  },
+                  webPointer,
+                ]}
+                onPress={resetAlleFilters}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={14} color={kleuren.fout} />
+                <Text style={[s.resetPillTekst, { color: kleuren.fout }]}>Wis</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
+
+        <FlatList
+          key={`col-${numColumns}`}
+          data={gefilterdeOefeningen}
+          numColumns={numColumns}
+          keyExtractor={(item) => item.id}
+          renderItem={renderOefening}
+          initialNumToRender={20}
+          maxToRenderPerBatch={24}
+          windowSize={10}
+          removeClippedSubviews={Platform.OS === 'android'}
+          contentContainerStyle={[
+            s.lijstInhoud,
+            {
+              paddingBottom: isDesktopNav
+                ? isActief
+                  ? 104
+                  : SPACING.xxxl
+                : NAV_METRICS.mobileContentBottomPadding + (isActief ? 72 : 0),
+            },
+          ]}
+          columnWrapperStyle={numColumns === 2 ? s.gridColumnWrapper : undefined}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={{ marginTop: 12 }}>
+              <EmptyState
+                icoon="search-outline"
+                titel="Geen oefeningen gevonden"
+                subtekst="Probeer een andere zoekterm of wis je actieve filters om alle oefeningen te zien."
+                actieTekst="Wis alle filters"
+                onActie={resetAlleFilters}
+              />
+            </View>
+          }
+        />
+      </ResponsiveContainer>
 
       <FilterModal
         zichtbaar={filterModal}
@@ -651,7 +1060,7 @@ export default function ExercisesTab() {
       <CustomOefeningModal
         zichtbaar={customModal}
         onSluiten={() => setCustomModal(false)}
-        onGemaakt={(o) => setCustomOef(prev => [...prev, o])}
+        onGemaakt={(o) => setCustomOef((prev) => [...prev, o])}
         kleuren={kleuren}
       />
     </SafeAreaView>
@@ -660,78 +1069,115 @@ export default function ExercisesTab() {
 
 const s = StyleSheet.create({
   veilig: { flex: 1 },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1,
+  containerFlex: { flex: 1 },
+  topSectie: {
+    paddingTop: SPACING.md,
+    marginBottom: 14,
   },
-  headerZij: { width: 82, alignItems: 'flex-start' },
-  headerTitel: { fontSize: 17, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   customKnop: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6,
-  },
-  zoekRij: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    gap: 5,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  customKnopTekst: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
   },
   zoekContainer: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    height: 42,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 48,
+    marginBottom: 12,
   },
-  zoekInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular' },
-  tweeFilterRij: {
+  zoekInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
+  },
+  filterPillsRij: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingVertical: 2,
   },
-  filterDropdownKnop: {
-    flex: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
+  filterPill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
   },
-  filterDropdownTekst: {
+  filterPillDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  filterPillTekst: {
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
   },
-  actieveFiltersBalk: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  filterCountBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
+    justifyContent: 'center',
   },
-  actieveFiltersTekst: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    flex: 1,
-  },
-  resetTekst: {
-    fontSize: 11,
+  filterCountTekst: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontFamily: 'Inter_700Bold',
-    marginLeft: 8,
   },
-  oefeningRij: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1, gap: 12,
+  resetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  resetPillTekst: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+  },
+  lijstInhoud: {
+    flexGrow: 1,
+  },
+  gridColumnWrapper: {
+    marginHorizontal: -6,
+  },
+  gridItemWrapper: {
+    width: '50%',
+    paddingHorizontal: 6,
+    marginBottom: 12,
+  },
+  listItemWrapper: {
+    width: '100%',
+    marginBottom: 10,
+  },
+  oefeningKaart: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 12,
   },
   thumbContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     borderWidth: 1,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -741,33 +1187,48 @@ const s = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  oefeningNaam: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  metaTekst: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  leegContainer: {
-    padding: 40,
+  oefInfo: {
+    flex: 1,
+    minWidth: 0,
+    gap: 5,
+  },
+  oefeningNaam: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    letterSpacing: -0.1,
+  },
+  metaRij: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 40,
+    flexWrap: 'wrap',
+    gap: 6,
   },
-  leegTitel: {
-    fontSize: 16,
+  groepBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  groepDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  groepBadgeTekst: {
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
   },
-  leegSub: {
-    fontSize: 13,
+  apparaatPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 7,
+    borderWidth: 1,
+  },
+  apparaatPillTekst: {
+    fontSize: 11,
     fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    maxWidth: 280,
-  },
-  resetGroteKnop: {
-    marginTop: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  resetGroteKnopTekst: {
-    color: '#FFF',
-    fontSize: 13,
-    fontFamily: 'Inter_700Bold',
   },
 });

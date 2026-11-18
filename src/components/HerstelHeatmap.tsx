@@ -4,6 +4,8 @@ import { useThema } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { findExercise } from '../data/exercises';
 import type { Spiergroep } from '../data/exercises';
+import { RADIUS } from '../theme/designTokens';
+import { EmptyState } from './ui/EmptyState';
 
 interface SpiergroepStatus {
   groep: Spiergroep;
@@ -78,13 +80,14 @@ export default function HerstelHeatmap({ userId }: HerstelHeatmapProps) {
     return 'Vermoeid';
   };
 
-  if (statussen.every(s => s.setsIn72u === 0)) {
+  if (statussen.length === 0 || statussen.every(st => st.setsIn72u === 0)) {
     return (
-      <View style={[s.leeg, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-        <Text style={[s.leegTekst, { color: kleuren.tekstGedimpt }]}>
-          Train om je herstelstatus te zien.
-        </Text>
-      </View>
+      <EmptyState
+        icoon="pulse-outline"
+        titel="Alle spiergroepen fris"
+        subtekst="Log een training om de herstelstatus van de afgelopen 72 uur te volgen."
+        compact
+      />
     );
   }
 
@@ -95,16 +98,27 @@ export default function HerstelHeatmap({ userId }: HerstelHeatmapProps) {
         return (
           <View
             key={status.groep}
-            style={[s.blok, { backgroundColor: kleur + '18', borderColor: kleur + '55' }]}
+            style={[
+              s.blok,
+              {
+                backgroundColor: kleuren.achtergrondSecundair,
+                borderColor: status.setsIn72u > 0 ? kleur + '55' : kleuren.kaartRand,
+              },
+            ]}
           >
             <View style={[s.indicator, { backgroundColor: kleur }]} />
-            <Text style={[s.groepNaam, { color: kleuren.tekst }]}>{status.groep}</Text>
-            <Text style={[s.statusTekst, { color: kleur }]}>{herstelLabel(status.herstel)}</Text>
-            {status.setsIn72u > 0 && (
-              <Text style={[s.setsTekst, { color: kleuren.tekstGedimpt }]}>
-                {status.setsIn72u} sets / 72u
+            <Text style={[s.groepNaam, { color: kleuren.tekst }]} numberOfLines={1}>
+              {status.groep}
+            </Text>
+            <View style={s.statusRij}>
+              <View style={[s.statusDot, { backgroundColor: kleur }]} />
+              <Text style={[s.statusTekst, { color: kleur }]} numberOfLines={1}>
+                {herstelLabel(status.herstel)}
               </Text>
-            )}
+            </View>
+            <Text style={[s.setsTekst, { color: kleuren.tekstGedimpt }]}>
+              {status.setsIn72u > 0 ? `${status.setsIn72u} sets / 72u` : '0 sets / 72u'}
+            </Text>
           </View>
         );
       })}
@@ -119,10 +133,13 @@ const s = StyleSheet.create({
     gap: 8,
   },
   blok: {
-    width: '30.5%',
-    borderRadius: 12,
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 96,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    padding: 10,
+    padding: 11,
+    paddingTop: 12,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -132,14 +149,21 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
   },
   groepNaam: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'Inter_700Bold',
-    marginTop: 6,
     marginBottom: 4,
+  },
+  statusRij: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusTekst: {
     fontSize: 11,
@@ -148,17 +172,7 @@ const s = StyleSheet.create({
   setsTekst: {
     fontSize: 10,
     fontFamily: 'Inter_400Regular',
-    marginTop: 2,
-  },
-  leeg: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  leegTekst: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
+    marginTop: 4,
+    fontVariant: ['tabular-nums'],
   },
 });

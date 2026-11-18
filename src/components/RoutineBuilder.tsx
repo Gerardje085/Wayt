@@ -5,8 +5,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity,
-  TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, Image,
+  View, Text, StyleSheet, Modal, TouchableOpacity, Pressable,
+  TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, Image, type ViewStyle,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -23,6 +23,9 @@ import { findExercise, getMediaUrl } from '../data/exercises';
 import { getDefaultRestTime, STANDAARD_RUST_TIJD } from '../lib/settingsStore';
 import ExerciseSelector from './ExerciseSelector';
 import ExerciseGuideModal from './ExerciseGuideModal';
+import { RADIUS, SHADOWS, useResponsive } from '../theme/designTokens';
+
+const WEB_POINTER = Platform.OS === 'web' ? ({ cursor: 'pointer' } as ViewStyle) : undefined;
 
 const REST_OPTIES: Array<{ label: string; seconden: number }> = [
   { label: '60s', seconden: 60 },
@@ -30,6 +33,14 @@ const REST_OPTIES: Array<{ label: string; seconden: number }> = [
   { label: '2min', seconden: 120 },
   { label: '3min', seconden: 180 },
 ];
+
+function toonAlert(titel: string, bericht: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${titel}\n\n${bericht}`);
+  } else {
+    Alert.alert(titel, bericht);
+  }
+}
 
 function formatGewicht(value: number): string {
   if (value === 0) return '0';
@@ -65,7 +76,7 @@ interface OefeningRijProps {
   kleuren: any;
 }
 
-function SetRij({ set, setIndex, toonGewicht, toonTijd, onWijzig, onVerwijder, kleuren }: any) {
+function SetRij({ set, setIndex, toonGewicht, onWijzig, onVerwijder, kleuren }: any) {
   const [gewichtStr, setGewichtStr] = useState(formatGewicht(set.gewicht));
   const externeGewichtRef = useRef(set.gewicht);
 
@@ -84,13 +95,18 @@ function SetRij({ set, setIndex, toonGewicht, toonTijd, onWijzig, onVerwijder, k
   }, [set.gewicht, set.reps]);
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingHorizontal: 4 }}>
-      <Text style={[stijlen.setNummer, { color: kleuren.tekst }]}>{setIndex + 1}</Text>
+    <View style={stijlen.setRij}>
+      <View style={[stijlen.setNummerBadge, { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand }]}>
+        <Text style={[stijlen.setNummer, { color: kleuren.tekstSecundair }]}>{setIndex + 1}</Text>
+      </View>
 
       {toonGewicht && (
-        <View style={{ flex: 1, paddingHorizontal: 4 }}>
+        <View style={{ flex: 1 }}>
           <TextInput
-            style={[stijlen.setMiniInput, { backgroundColor: kleuren.achtergrond, color: kleuren.tekst }]}
+            style={[
+              stijlen.setMiniInput,
+              { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand, color: kleuren.tekst },
+            ]}
             keyboardType="decimal-pad"
             value={gewichtStr}
             onChangeText={(t) => {
@@ -105,14 +121,17 @@ function SetRij({ set, setIndex, toonGewicht, toonTijd, onWijzig, onVerwijder, k
         </View>
       )}
 
-      <View style={{ flex: 1, paddingHorizontal: 4 }}>
+      <View style={{ flex: 1 }}>
         <TextInput
-          style={[stijlen.setMiniInput, { backgroundColor: kleuren.achtergrond, color: kleuren.tekst }]}
+          style={[
+            stijlen.setMiniInput,
+            { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand, color: kleuren.tekst },
+          ]}
           keyboardType="numeric"
           value={repsStr}
           onChangeText={(t) => {
             setRepsStr(t);
-            const num = parseInt(t) || 0;
+            const num = parseInt(t, 10) || 0;
             externeRepsRef.current = num;
             onWijzig('reps', num);
           }}
@@ -120,11 +139,11 @@ function SetRij({ set, setIndex, toonGewicht, toonTijd, onWijzig, onVerwijder, k
         />
       </View>
 
-      {/* Delete Set Button */}
       <TouchableOpacity
         onPress={() => onVerwijder(set.id)}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        style={stijlen.verwijderSetKnop}
+        style={[stijlen.verwijderSetKnop, WEB_POINTER]}
+        accessibilityLabel={`Set ${setIndex + 1} verwijderen`}
       >
         <Ionicons name="close-circle-outline" size={20} color={kleuren.fout} />
       </TouchableOpacity>
@@ -168,14 +187,13 @@ function OefeningRij({
   };
 
   return (
-    <View style={[stijlen.oefKaart, { backgroundColor: kleuren.isDark ? '#000000' : kleuren.kaart, borderColor: kleuren.kaartRand }]}>
+    <View style={[stijlen.oefKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
       <View style={stijlen.oefHeaderNormaal}>
         <TouchableOpacity
-          style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}
+          style={[{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }, WEB_POINTER]}
           onPress={() => onToonUitleg(item.id, oefInfo?.naam || oefInfo?.name)}
           activeOpacity={0.7}
         >
-          {/* Thumbnail Preview Image */}
           <View style={[stijlen.thumbContainer, { backgroundColor: '#FFFFFF', borderColor: kleuren.kaartRand }]}>
             {mediaUri ? (
               <Image source={{ uri: mediaUri }} style={stijlen.thumbImage} resizeMode="contain" />
@@ -183,7 +201,7 @@ function OefeningRij({
               <Ionicons name={(oefInfo?.icoon as any) ?? 'barbell-outline'} size={20} color={kleuren.accent} />
             )}
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[stijlen.oefNaam, { color: kleuren.tekst }]} numberOfLines={1}>
               {oefInfo?.naam ?? item.id}
             </Text>
@@ -193,30 +211,32 @@ function OefeningRij({
           </View>
         </TouchableOpacity>
 
-        {/* Action Buttons: Information & Trash */}
         <View style={stijlen.headerActies}>
           <TouchableOpacity
             onPress={() => onToonUitleg(item.id, oefInfo?.naam || oefInfo?.name)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={stijlen.actieIcoonKnop}
+            style={[stijlen.actieIcoonKnop, { backgroundColor: kleuren.accentGedimpt }, WEB_POINTER]}
             accessibilityLabel="Oefening uitleg bekijken"
           >
-            <Ionicons name="information-circle-outline" size={22} color={kleuren.accent} />
+            <Ionicons name="information-circle-outline" size={19} color={kleuren.accentLicht} />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={bevestigVerwijder}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={stijlen.actieIcoonKnop}
+            style={[stijlen.actieIcoonKnop, { backgroundColor: kleuren.fout + '14' }, WEB_POINTER]}
             accessibilityLabel="Oefening verwijderen"
           >
-            <Ionicons name="trash-outline" size={19} color={kleuren.fout} />
+            <Ionicons name="trash-outline" size={18} color={kleuren.fout} />
           </TouchableOpacity>
         </View>
       </View>
 
       <TextInput
-        style={[stijlen.notitiesInput, { color: kleuren.tekst, backgroundColor: kleuren.achtergrond, borderColor: kleuren.kaartRand }]}
+        style={[
+          stijlen.notitiesInput,
+          { color: kleuren.tekst, backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand },
+        ]}
         value={item.notities ?? ''}
         onChangeText={(t) => onWijzigNotities(index, t)}
         placeholder="Voeg een notitie toe (optioneel)"
@@ -224,10 +244,12 @@ function OefeningRij({
         multiline
       />
 
-      <View style={{ flexDirection: 'row', marginBottom: 8, paddingHorizontal: 4, alignItems: 'center' }}>
+      <View style={stijlen.tableHeaderRij}>
         <Text style={[stijlen.tableHeader, { width: 32, textAlign: 'center', color: kleuren.tekstGedimpt }]}>SET</Text>
         {toonGewicht && <Text style={[stijlen.tableHeader, { flex: 1, textAlign: 'center', color: kleuren.tekstGedimpt }]}>KG</Text>}
-        <Text style={[stijlen.tableHeader, { flex: 1, textAlign: 'center', color: kleuren.tekstGedimpt }]}>{toonTijd ? 'TIME' : 'REPS'}</Text>
+        <Text style={[stijlen.tableHeader, { flex: 1, textAlign: 'center', color: kleuren.tekstGedimpt }]}>
+          {toonTijd ? 'TIJD' : 'REPS'}
+        </Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -237,7 +259,6 @@ function OefeningRij({
           set={set}
           setIndex={setIndex}
           toonGewicht={toonGewicht}
-          toonTijd={toonTijd}
           onWijzig={(veld: any, waarde: any) => onWijzigSet(index, setIndex, veld, waarde)}
           onVerwijder={(setId: string) => onVerwijderSet(index, setId)}
           kleuren={kleuren}
@@ -245,15 +266,19 @@ function OefeningRij({
       ))}
 
       <TouchableOpacity
-        style={[stijlen.addSetKnop, { backgroundColor: kleuren.achtergrond, borderColor: kleuren.kaartRand }]}
+        style={[
+          stijlen.addSetKnop,
+          { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand },
+          WEB_POINTER,
+        ]}
         onPress={() => onVoegSetToe(index)}
+        activeOpacity={0.75}
       >
-        <Ionicons name="add" size={16} color={kleuren.accent} style={{ marginRight: 6 }} />
-        <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Set toevoegen</Text>
+        <Ionicons name="add" size={16} color={kleuren.accentLicht} style={{ marginRight: 6 }} />
+        <Text style={{ color: kleuren.tekst, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Set toevoegen</Text>
       </TouchableOpacity>
 
-      {/* Rusttijd Sectie met Presets en Custom Rusttijd */}
-      <View style={stijlen.rustRij}>
+      <View style={[stijlen.rustRij, { borderTopColor: kleuren.kaartRand }]}>
         <Text style={[stijlen.rustLabel, { color: kleuren.tekstGedimpt }]}>RUST TUSSEN SETS</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {REST_OPTIES.map(opt => {
@@ -264,32 +289,33 @@ function OefeningRij({
                 style={[
                   stijlen.rustKnop,
                   {
-                    backgroundColor: actief ? kleuren.accentGedimpt : kleuren.achtergrond,
+                    backgroundColor: actief ? kleuren.accentGedimpt : kleuren.achtergrondSecundair,
                     borderColor: actief ? kleuren.accent : kleuren.kaartRand,
                   },
+                  WEB_POINTER,
                 ]}
                 onPress={() => onWijzigRustTijd(index, opt.seconden)}
               >
-                <Text style={{ color: actief ? kleuren.accent : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+                <Text style={{ color: actief ? kleuren.accentLicht : kleuren.tekstSecundair, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
                   {opt.label}
                 </Text>
               </TouchableOpacity>
             );
           })}
 
-          {/* Custom Rusttijd Knop */}
           <TouchableOpacity
             style={[
               stijlen.rustKnop,
               {
-                backgroundColor: !isPresetActief ? kleuren.accentGedimpt : kleuren.achtergrond,
+                backgroundColor: !isPresetActief ? kleuren.accentGedimpt : kleuren.achtergrondSecundair,
                 borderColor: !isPresetActief ? kleuren.accent : kleuren.kaartRand,
               },
+              WEB_POINTER,
             ]}
             onPress={() => onOpenCustomRust(index, huidigeRust)}
           >
-            <Text style={{ color: !isPresetActief ? kleuren.accent : kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
-              {!isPresetActief ? `${huidigeRust}s (Aangepast)` : '+ Custom'}
+            <Text style={{ color: !isPresetActief ? kleuren.accentLicht : kleuren.tekstSecundair, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+              {!isPresetActief ? `${huidigeRust}s (Aangepast)` : '+ Aangepast'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -300,24 +326,30 @@ function OefeningRij({
 
 interface ReorderRowProps {
   item: LokaleOefening;
+  index: number;
   positions: import('react-native-reanimated').SharedValue<Record<string, number>>;
   totaal: number;
   onVerwijder: (key: string) => void;
+  onVerplaats: (index: number, richting: -1 | 1) => void;
   onDragEnd: (volgordeIds: string[]) => void;
   kleuren: any;
   itemHoogte: number;
 }
 
 function ReorderRow({
-  item, positions, totaal, onVerwijder, onDragEnd, kleuren, itemHoogte
+  item, index, positions, totaal, onVerwijder, onVerplaats, onDragEnd, kleuren, itemHoogte,
 }: ReorderRowProps) {
   const oefInfo = findExercise(item.id);
   const id = item._key;
   const mediaUri = oefInfo?.image_url || getMediaUrl(oefInfo?.image);
 
   const isDragging = useSharedValue(false);
-  const top = useSharedValue((positions.value[id] ?? 0) * itemHoogte);
-  const initialIndex = useSharedValue(0);
+  const top = useSharedValue((positions.value[id] ?? index) * itemHoogte);
+  const initialIndex = useSharedValue(index);
+
+  useEffect(() => {
+    top.value = withTiming(index * itemHoogte, { duration: 150 });
+  }, [index, itemHoogte, top]);
 
   useAnimatedReaction(
     () => positions.value[id],
@@ -343,7 +375,6 @@ function ReorderRow({
       top.value = newTop;
 
       const newIndex = Math.max(0, Math.min(totaal - 1, Math.round(newTop / itemHoogte)));
-
       const currentIndex = positions.value[id];
       if (newIndex !== currentIndex) {
         const idToSwap = Object.keys(positions.value).find(key => positions.value[key] === newIndex);
@@ -375,13 +406,8 @@ function ReorderRow({
     right: 0,
     height: itemHoogte - 8,
     zIndex: isDragging.value ? 100 : 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: isDragging.value ? 10 : 0 },
-    shadowOpacity: isDragging.value ? 0.3 : 0,
-    shadowRadius: isDragging.value ? 15 : 0,
-    elevation: isDragging.value ? 10 : 0,
-    backgroundColor: isDragging.value ? (kleuren.isDark ? '#2A2A3A' : '#F5F5FA') : kleuren.kaart,
-    borderRadius: 12,
+    backgroundColor: isDragging.value ? kleuren.achtergrondSecundair : kleuren.kaart,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: isDragging.value ? kleuren.accent : kleuren.kaartRand,
     justifyContent: 'center',
@@ -389,9 +415,9 @@ function ReorderRow({
 
   return (
     <Animated.View style={animStyle}>
-      <View style={[stijlen.reorderRij, { height: '100%', paddingVertical: 0 }]}>
-        <TouchableOpacity style={stijlen.reorderVerwijder} onPress={() => onVerwijder(id)}>
-          <Ionicons name="remove-circle" size={24} color={kleuren.fout} />
+      <View style={[stijlen.reorderRij, { height: '100%' }]}>
+        <TouchableOpacity style={[stijlen.reorderVerwijder, WEB_POINTER]} onPress={() => onVerwijder(id)}>
+          <Ionicons name="remove-circle" size={22} color={kleuren.fout} />
         </TouchableOpacity>
 
         <View style={[stijlen.thumbContainerSmall, { backgroundColor: '#FFFFFF', borderColor: kleuren.kaartRand }]}>
@@ -405,11 +431,40 @@ function ReorderRow({
           {oefInfo?.naam ?? item.id}
         </Text>
 
-        <GestureDetector gesture={dragGesture}>
-          <View style={stijlen.reorderHandle} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Ionicons name="reorder-three-outline" size={26} color={kleuren.tekstGedimpt} />
+        {Platform.OS === 'web' ? (
+          <View style={stijlen.webMoveKnoppen}>
+            <TouchableOpacity
+              style={[
+                stijlen.webMoveKnop,
+                { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand, opacity: index === 0 ? 0.35 : 1 },
+                WEB_POINTER,
+              ]}
+              onPress={() => onVerplaats(index, -1)}
+              disabled={index === 0}
+              accessibilityLabel="Omhoog verplaatsen"
+            >
+              <Ionicons name="chevron-up" size={16} color={kleuren.tekst} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                stijlen.webMoveKnop,
+                { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand, opacity: index === totaal - 1 ? 0.35 : 1 },
+                WEB_POINTER,
+              ]}
+              onPress={() => onVerplaats(index, 1)}
+              disabled={index === totaal - 1}
+              accessibilityLabel="Omlaag verplaatsen"
+            >
+              <Ionicons name="chevron-down" size={16} color={kleuren.tekst} />
+            </TouchableOpacity>
           </View>
-        </GestureDetector>
+        ) : (
+          <GestureDetector gesture={dragGesture}>
+            <View style={stijlen.reorderHandle} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="reorder-three-outline" size={26} color={kleuren.tekstGedimpt} />
+            </View>
+          </GestureDetector>
+        )}
       </View>
     </Animated.View>
   );
@@ -417,19 +472,20 @@ function ReorderRow({
 
 export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, onSluiten }: RoutineBuilderProps) {
   const { kleuren } = useThema();
+  const { isDesktop, isTablet, height } = useResponsive();
+  const isDialog = isDesktop || isTablet;
+
   const [naam, setNaam] = useState('');
   const [oefeningen, setOefeningen] = useState<LokaleOefening[]>([]);
   const [selectorZichtbaar, setSelectorZichtbaar] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
 
-  // Guide modal state
   const [guideModal, setGuideModal] = useState<{ zichtbaar: boolean; oefeningId: string; oefeningNaam?: string }>({
     zichtbaar: false,
     oefeningId: '',
     oefeningNaam: '',
   });
 
-  // Custom rust modal state
   const [customRustState, setCustomRustState] = useState<{ zichtbaar: boolean; oefIndex: number; waarde: string }>({
     zichtbaar: false,
     oefIndex: 0,
@@ -440,6 +496,19 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
   const REORDER_ITEM_HOOGTE = 66;
 
   useEffect(() => {
+    if (!zichtbaar || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (selectorZichtbaar || guideModal.zichtbaar || customRustState.zichtbaar) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isReordering) setIsReordering(false);
+        else onSluiten();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zichtbaar, isReordering, selectorZichtbaar, guideModal.zichtbaar, customRustState.zichtbaar, onSluiten]);
+
+  useEffect(() => {
     if (isReordering) {
       const pos: Record<string, number> = {};
       oefeningen.forEach((item, index) => {
@@ -447,7 +516,7 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
       });
       positions.value = pos;
     }
-  }, [isReordering, oefeningen.length]);
+  }, [isReordering, oefeningen]);
 
   useEffect(() => {
     if (zichtbaar) {
@@ -492,6 +561,17 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
     setOefeningen(prev => prev.filter(item => item._key !== key));
   }, []);
 
+  const verplaatsOefening = useCallback((index: number, richting: -1 | 1) => {
+    setOefeningen(prev => {
+      const doel = index + richting;
+      if (doel < 0 || doel >= prev.length) return prev;
+      const kopie = [...prev];
+      const [item] = kopie.splice(index, 1);
+      kopie.splice(doel, 0, item);
+      return kopie;
+    });
+  }, []);
+
   const toonUitlegModal = useCallback((id: string, oefNaam?: string) => {
     setGuideModal({
       zichtbaar: true,
@@ -511,7 +591,7 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
   const bewaarCustomRust = useCallback(() => {
     const num = parseInt(customRustState.waarde, 10);
     if (isNaN(num) || num < 5 || num > 600) {
-      Alert.alert('Ongeldige tijd', 'Voer een tijd in tussen 5 en 600 seconden.');
+      toonAlert('Ongeldige tijd', 'Voer een tijd in tussen 5 en 600 seconden.');
       return;
     }
     setOefeningen(prev => {
@@ -590,11 +670,11 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
 
   async function handleOpslaan() {
     if (!naam.trim()) {
-      Alert.alert('Naam verplicht', 'Geef je routine een naam.');
+      toonAlert('Naam verplicht', 'Geef je routine een naam.');
       return;
     }
     if (oefeningen.length === 0) {
-      Alert.alert('Geen oefeningen', 'Voeg minimaal één oefening toe.');
+      toonAlert('Geen oefeningen', 'Voeg minimaal één oefening toe.');
       return;
     }
 
@@ -602,36 +682,58 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
 
     await saveRoutine({
       id: initialRoutine ? initialRoutine.id : Date.now().toString(),
-      naam,
+      naam: naam.trim(),
       oefeningen: schoneOefeningen,
     });
     onOpslaan();
     onSluiten();
   }
 
+  const containerStyle = [
+    stijlen.modalContainer,
+    {
+      backgroundColor: kleuren.achtergrond,
+      borderColor: kleuren.kaartRand,
+      height: isDialog ? Math.min(height * 0.88, 820) : '92%',
+    },
+    isDialog ? stijlen.dialogContainer : stijlen.sheetContainer,
+    SHADOWS.forTheme(kleuren.isDark, 'lg'),
+  ];
+
   if (isReordering) {
     return (
-      <Modal visible={zichtbaar} animationType="slide" transparent={true} onRequestClose={() => setIsReordering(false)}>
-        <View style={stijlen.overlay}>
-          <View style={[stijlen.modalContainer, { backgroundColor: kleuren.isDark ? '#000000' : '#FFFFFF' }]}>
+      <Modal
+        visible={zichtbaar}
+        animationType={Platform.OS === 'web' || isDialog ? 'fade' : 'slide'}
+        transparent
+        onRequestClose={() => setIsReordering(false)}
+        statusBarTranslucent
+      >
+        <View style={[stijlen.overlay, isDialog ? stijlen.overlayDialog : stijlen.overlaySheet]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsReordering(false)} />
+          <View style={containerStyle}>
+            {!isDialog && (
+              <View style={stijlen.handvatWrap}>
+                <View style={[stijlen.handvat, { backgroundColor: kleuren.kaartRand }]} />
+              </View>
+            )}
             <View style={[stijlen.header, { borderBottomColor: kleuren.kaartRand }]}>
-              <View style={{ width: 60 }} />
-              <Text style={[stijlen.headerTitel, { color: kleuren.tekstSecundair }]}>Volgorde Aanpassen</Text>
-              <View style={{ width: 60 }} />
+              <View style={{ width: 64 }} />
+              <Text style={[stijlen.headerTitel, { color: kleuren.tekst }]}>Volgorde aanpassen</Text>
+              <View style={{ width: 64 }} />
             </View>
 
-            <ScrollView
-              style={{ flex: 1 }}
-              showsVerticalScrollIndicator={false}
-            >
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
               <View style={{ height: oefeningen.length * REORDER_ITEM_HOOGTE, position: 'relative', margin: 16 }}>
-                {oefeningen.map((item) => (
+                {oefeningen.map((item, idx) => (
                   <ReorderRow
                     key={item._key}
                     item={item}
+                    index={idx}
                     positions={positions}
                     totaal={oefeningen.length}
                     onVerwijder={verwijderOefeningByKey}
+                    onVerplaats={verplaatsOefening}
                     onDragEnd={handleDragEnd}
                     kleuren={kleuren}
                     itemHoogte={REORDER_ITEM_HOOGTE}
@@ -642,7 +744,7 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
 
             <View style={[stijlen.footer, { borderTopColor: kleuren.kaartRand }]}>
               <TouchableOpacity
-                style={[stijlen.doneKnop, { backgroundColor: kleuren.accent }]}
+                style={[stijlen.doneKnop, { backgroundColor: kleuren.accent }, WEB_POINTER]}
                 onPress={() => setIsReordering(false)}
               >
                 <Text style={stijlen.doneTekst}>Gereed</Text>
@@ -655,26 +757,52 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
   }
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" transparent={true} onRequestClose={onSluiten}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={stijlen.overlay}>
-        <View style={[stijlen.modalContainer, { backgroundColor: kleuren.achtergrond }]}>
+    <Modal
+      visible={zichtbaar}
+      animationType={Platform.OS === 'web' || isDialog ? 'fade' : 'slide'}
+      transparent
+      onRequestClose={onSluiten}
+      statusBarTranslucent
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={[stijlen.overlay, isDialog ? stijlen.overlayDialog : stijlen.overlaySheet]}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onSluiten} />
+
+        <View style={containerStyle}>
+          {!isDialog && (
+            <View style={stijlen.handvatWrap}>
+              <View style={[stijlen.handvat, { backgroundColor: kleuren.kaartRand }]} />
+            </View>
+          )}
+
           <View style={[stijlen.header, { borderBottomColor: kleuren.kaartRand }]}>
-            <TouchableOpacity onPress={onSluiten} style={stijlen.headerKnop}>
-              <Text style={{ color: kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold' }}>Annuleer</Text>
+            <TouchableOpacity onPress={onSluiten} style={[stijlen.headerKnop, WEB_POINTER]}>
+              <Text style={{ color: kleuren.tekstSecundair, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>
+                Annuleer
+              </Text>
             </TouchableOpacity>
-            <Text style={[stijlen.headerTitel, { color: kleuren.tekstSecundair }]}>
-              {initialRoutine ? 'Routine Aanpassen' : 'Nieuwe Routine'}
+            <Text style={[stijlen.headerTitel, { color: kleuren.tekst }]}>
+              {initialRoutine ? 'Routine aanpassen' : 'Nieuwe routine'}
             </Text>
-            <TouchableOpacity onPress={handleOpslaan} style={stijlen.headerKnop}>
-              <Text style={{ color: kleuren.accent, fontFamily: 'Inter_700Bold' }}>Opslaan</Text>
+            <TouchableOpacity
+              onPress={handleOpslaan}
+              style={[stijlen.opslaanHeaderKnop, { backgroundColor: kleuren.accent }, WEB_POINTER]}
+            >
+              <Text style={{ color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Opslaan</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={stijlen.scrollInhoud} showsVerticalScrollIndicator={false}>
+          <ScrollView style={stijlen.scrollInhoud} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <View style={stijlen.sectie}>
+              <Text style={[stijlen.veldLabel, { color: kleuren.tekstGedimpt }]}>NAAM VAN ROUTINE</Text>
               <TextInput
-                style={[stijlen.naamInput, { color: kleuren.tekst, borderBottomColor: kleuren.kaartRand }]}
-                placeholder="Naam van de Routine..."
+                style={[
+                  stijlen.naamInput,
+                  { color: kleuren.tekst, backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand },
+                ]}
+                placeholder="Bijv. Push Dag, Upper Body..."
                 placeholderTextColor={kleuren.tekstGedimpt}
                 value={naam}
                 onChangeText={setNaam}
@@ -682,11 +810,18 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
             </View>
 
             <View style={stijlen.sectieHeaderRij}>
-              <Text style={[stijlen.sectieLabel, { color: kleuren.accent }]}>OEFENINGEN</Text>
+              <Text style={[stijlen.sectieLabel, { color: kleuren.tekstGedimpt }]}>
+                OEFENINGEN ({oefeningen.length})
+              </Text>
               {oefeningen.length > 1 && (
-                <TouchableOpacity onPress={() => setIsReordering(true)} style={stijlen.reorderTrigger}>
-                  <Ionicons name="swap-vertical" size={16} color={kleuren.accent} style={{ marginRight: 4 }} />
-                  <Text style={{ color: kleuren.accent, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Volgorde</Text>
+                <TouchableOpacity
+                  onPress={() => setIsReordering(true)}
+                  style={[stijlen.reorderTrigger, { backgroundColor: kleuren.accentGedimpt }, WEB_POINTER]}
+                >
+                  <Ionicons name="swap-vertical" size={14} color={kleuren.accentLicht} />
+                  <Text style={{ color: kleuren.accentLicht, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+                    Volgorde
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -709,17 +844,21 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
             ))}
 
             <TouchableOpacity
-              style={[stijlen.groteVoegToeKnop, { borderColor: kleuren.accent, backgroundColor: kleuren.accentGedimpt }]}
+              style={[
+                stijlen.groteVoegToeKnop,
+                { borderColor: kleuren.accent, backgroundColor: kleuren.accentGedimpt },
+                WEB_POINTER,
+              ]}
               onPress={() => setSelectorZichtbaar(true)}
+              activeOpacity={0.8}
             >
-              <Ionicons name="add-circle" size={20} color={kleuren.accent} style={{ marginRight: 8 }} />
-              <Text style={[stijlen.groteVoegToeTekst, { color: kleuren.accent }]}>Oefening toevoegen</Text>
+              <Ionicons name="add-circle" size={20} color={kleuren.accentLicht} style={{ marginRight: 8 }} />
+              <Text style={[stijlen.groteVoegToeTekst, { color: kleuren.accentLicht }]}>Oefening toevoegen</Text>
             </TouchableOpacity>
 
-            <View style={{ height: 40 }} />
+            <View style={{ height: 32 }} />
           </ScrollView>
 
-          {/* Exercise Selector */}
           <ExerciseSelector
             zichtbaar={selectorZichtbaar}
             huidigeSelectie=""
@@ -727,7 +866,6 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
             onSluiten={() => setSelectorZichtbaar(false)}
           />
 
-          {/* Exercise Guide Modal */}
           <ExerciseGuideModal
             zichtbaar={guideModal.zichtbaar}
             oefeningId={guideModal.oefeningId}
@@ -735,7 +873,6 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
             onSluiten={() => setGuideModal({ zichtbaar: false, oefeningId: '', oefeningNaam: '' })}
           />
 
-          {/* Custom Rest Time Modal for Exercise in Routine */}
           <Modal
             visible={customRustState.zichtbaar}
             transparent
@@ -743,14 +880,27 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
             onRequestClose={() => setCustomRustState({ zichtbaar: false, oefIndex: 0, waarde: '' })}
           >
             <View style={stijlen.customModalOverlay}>
-              <View style={[stijlen.customModalBox, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
-                <Text style={[stijlen.customModalTitel, { color: kleuren.tekst }]}>Aangepaste Rusttijd</Text>
-                <Text style={[stijlen.customModalSub, { color: kleuren.tekstGedimpt }]}>
-                  Voer het aantal seconden rust in voor deze oefening:
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => setCustomRustState({ zichtbaar: false, oefIndex: 0, waarde: '' })}
+              />
+              <View
+                style={[
+                  stijlen.customModalBox,
+                  { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand },
+                  SHADOWS.forTheme(kleuren.isDark, 'lg'),
+                ]}
+              >
+                <Text style={[stijlen.customModalTitel, { color: kleuren.tekst }]}>Aangepaste rusttijd</Text>
+                <Text style={[stijlen.customModalSub, { color: kleuren.tekstSecundair }]}>
+                  Voer het aantal seconden rust in voor deze oefening (5 – 600s):
                 </Text>
 
                 <TextInput
-                  style={[stijlen.customInput, { backgroundColor: kleuren.achtergrond, borderColor: kleuren.kaartRand, color: kleuren.tekst }]}
+                  style={[
+                    stijlen.customInput,
+                    { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand, color: kleuren.tekst },
+                  ]}
                   keyboardType="numeric"
                   placeholder="bijv. 75"
                   placeholderTextColor={kleuren.tekstGedimpt}
@@ -761,16 +911,24 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
 
                 <View style={stijlen.customModalKnoppen}>
                   <TouchableOpacity
-                    style={[stijlen.customModalKnop, { backgroundColor: kleuren.achtergrond, borderColor: kleuren.kaartRand }]}
+                    style={[
+                      stijlen.customModalKnop,
+                      { backgroundColor: kleuren.achtergrondSecundair, borderColor: kleuren.kaartRand },
+                      WEB_POINTER,
+                    ]}
                     onPress={() => setCustomRustState({ zichtbaar: false, oefIndex: 0, waarde: '' })}
                   >
-                    <Text style={{ color: kleuren.tekstGedimpt, fontFamily: 'Inter_600SemiBold' }}>Annuleren</Text>
+                    <Text style={{ color: kleuren.tekstSecundair, fontFamily: 'Inter_600SemiBold' }}>Annuleren</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[stijlen.customModalKnop, { backgroundColor: kleuren.accent, borderColor: kleuren.accent }]}
+                    style={[
+                      stijlen.customModalKnop,
+                      { backgroundColor: kleuren.accent, borderColor: kleuren.accent },
+                      WEB_POINTER,
+                    ]}
                     onPress={bewaarCustomRust}
                   >
-                    <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold' }}>Opslaan</Text>
+                    <Text style={{ color: '#FFFFFF', fontFamily: 'Inter_700Bold' }}>Opslaan</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -785,76 +943,121 @@ export default function RoutineBuilder({ zichtbaar, initialRoutine, onOpslaan, o
 const stijlen = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.58)',
+  },
+  overlaySheet: {
     justifyContent: 'flex-end',
   },
+  overlayDialog: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
   modalContainer: {
-    height: '92%',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 16,
+    width: '100%',
+    borderWidth: 1,
     overflow: 'hidden',
+  },
+  sheetContainer: {
+    borderTopLeftRadius: RADIUS.xxl,
+    borderTopRightRadius: RADIUS.xxl,
+    borderBottomWidth: 0,
+  },
+  dialogContainer: {
+    maxWidth: 640,
+    borderRadius: RADIUS.xl,
+  },
+  handvatWrap: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+  handvat: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderBottomWidth: 1,
   },
   headerTitel: {
     fontSize: 17,
     fontFamily: 'Inter_700Bold',
+    letterSpacing: -0.2,
   },
   headerKnop: {
-    padding: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  opslaanHeaderKnop: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: RADIUS.sm,
   },
   scrollInhoud: {
     flex: 1,
     paddingHorizontal: 16,
   },
   sectie: {
-    marginVertical: 12,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  veldLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.2,
+    marginBottom: 8,
   },
   naamInput: {
-    fontSize: 20,
+    fontSize: 17,
     fontFamily: 'Inter_700Bold',
-    borderBottomWidth: 1,
-    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   sectieHeaderRij: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   sectieLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_700Bold',
-    letterSpacing: 1,
+    letterSpacing: 1.1,
   },
   reorderTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: RADIUS.full,
   },
   oefKaart: {
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
-    padding: 14,
+    padding: 15,
     marginBottom: 14,
   },
   oefHeaderNormaal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
+    gap: 8,
   },
   thumbContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 11,
     borderWidth: 1,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -863,7 +1066,7 @@ const stijlen = StyleSheet.create({
   thumbContainerSmall: {
     width: 36,
     height: 36,
-    borderRadius: 8,
+    borderRadius: 9,
     borderWidth: 1,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -879,49 +1082,74 @@ const stijlen = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
   },
   oefSub: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    marginTop: 1,
+    marginTop: 2,
   },
   headerActies: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   actieIcoonKnop: {
-    padding: 6,
-    borderRadius: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   notitiesInput: {
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
     marginBottom: 12,
-    minHeight: 36,
+    minHeight: 38,
+  },
+  tableHeaderRij: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    alignItems: 'center',
+    gap: 8,
   },
   tableHeader: {
     fontSize: 10,
     fontFamily: 'Inter_700Bold',
-    letterSpacing: 1,
+    letterSpacing: 0.9,
+  },
+  setRij: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 7,
+    gap: 8,
+  },
+  setNummerBadge: {
+    width: 32,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   setNummer: {
-    width: 32,
-    textAlign: 'center',
     fontFamily: 'Inter_700Bold',
     fontSize: 13,
+    fontVariant: ['tabular-nums'],
   },
   setMiniInput: {
     borderRadius: 8,
+    borderWidth: 1,
     paddingVertical: 8,
     textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_700Bold',
     fontSize: 14,
+    fontVariant: ['tabular-nums'],
   },
   verwijderSetKnop: {
     width: 32,
-    height: 32,
+    height: 34,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -930,26 +1158,26 @@ const stijlen = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
-    marginTop: 8,
+    borderStyle: 'dashed',
+    marginTop: 6,
   },
   rustRij: {
     marginTop: 14,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(128,128,128,0.1)',
   },
   rustLabel: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 1,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   rustKnop: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: 8,
     borderWidth: 1,
   },
   reorderRij: {
@@ -968,14 +1196,26 @@ const stijlen = StyleSheet.create({
   reorderHandle: {
     padding: 6,
   },
+  webMoveKnoppen: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  webMoveKnop: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   groteVoegToeKnop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    marginTop: 6,
+    marginTop: 4,
   },
   groteVoegToeTekst: {
     fontSize: 14,
@@ -987,27 +1227,27 @@ const stijlen = StyleSheet.create({
   },
   doneKnop: {
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
   },
   doneTekst: {
-    color: '#FFF',
+    color: '#FFFFFF',
     fontSize: 15,
     fontFamily: 'Inter_700Bold',
   },
   customModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   customModalBox: {
     width: '100%',
-    maxWidth: 320,
-    borderRadius: 18,
+    maxWidth: 340,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
-    padding: 20,
+    padding: 22,
   },
   customModalTitel: {
     fontSize: 17,
@@ -1017,17 +1257,18 @@ const stijlen = StyleSheet.create({
   customModalSub: {
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
-    lineHeight: 18,
+    lineHeight: 19,
     marginBottom: 16,
   },
   customInput: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: RADIUS.md,
     padding: 12,
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'Inter_700Bold',
     textAlign: 'center',
     marginBottom: 16,
+    fontVariant: ['tabular-nums'],
   },
   customModalKnoppen: {
     flexDirection: 'row',
@@ -1035,7 +1276,7 @@ const stijlen = StyleSheet.create({
   },
   customModalKnop: {
     flex: 1,
-    borderRadius: 10,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
     paddingVertical: 12,
     alignItems: 'center',

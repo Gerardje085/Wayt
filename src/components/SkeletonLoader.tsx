@@ -13,12 +13,13 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useThema } from '../context/ThemeContext';
+import { RADIUS } from '../theme/designTokens';
 
 interface SkeletonBlokkProps {
   breedte?: number | `${number}%`;
-  hoogte:   number;
-  radius?:  number;
-  stijl?:   ViewStyle;
+  hoogte: number;
+  radius?: number;
+  stijl?: ViewStyle;
 }
 
 /** Eén skeleton-blok met puls-animatie */
@@ -29,15 +30,15 @@ export function SkeletonBlok({
   stijl,
 }: SkeletonBlokkProps) {
   const { kleuren } = useThema();
-  const opaciteit   = useSharedValue(0.4);
+  const opaciteit = useSharedValue(0.45);
 
   useEffect(() => {
     opaciteit.value = withRepeat(
       withSequence(
-        withTiming(1,   { duration: 700, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.4, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 750, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.45, { duration: 750, easing: Easing.inOut(Easing.ease) }),
       ),
-      -1, // oneindig
+      -1,
       false,
     );
   }, [opaciteit]);
@@ -50,10 +51,10 @@ export function SkeletonBlok({
     <Animated.View
       style={[
         {
-          width:        breedte as ViewStyle['width'],
-          height:       hoogte,
+          width: breedte as ViewStyle['width'],
+          height: hoogte,
           borderRadius: radius,
-          backgroundColor: kleuren.isDark ? '#2A2A4A' : '#DDD6FE',
+          backgroundColor: kleuren.isDark ? '#27272A' : '#E4E4E7',
         },
         animStijl,
         stijl,
@@ -66,9 +67,21 @@ export function SkeletonBlok({
 export function SkeletonStatKaart({ stijl }: { stijl?: ViewStyle }) {
   const { kleuren } = useThema();
   return (
-    <View style={[{ backgroundColor: kleuren.kaart, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: kleuren.kaartRand }, stijl]}>
-      <SkeletonBlok hoogte={26} breedte={60} radius={6} stijl={{ marginBottom: 6 }} />
-      <SkeletonBlok hoogte={12} breedte={50} radius={4} />
+    <View
+      style={[
+        {
+          backgroundColor: kleuren.kaart,
+          borderRadius: RADIUS.lg,
+          padding: 16,
+          alignItems: 'center',
+          borderWidth: 1,
+          borderColor: kleuren.kaartRand,
+        },
+        stijl,
+      ]}
+    >
+      <SkeletonBlok hoogte={26} breedte={56} radius={6} stijl={{ marginBottom: 8 }} />
+      <SkeletonBlok hoogte={12} breedte={48} radius={4} />
     </View>
   );
 }
@@ -77,11 +90,11 @@ export function SkeletonStatKaart({ stijl }: { stijl?: ViewStyle }) {
 export function SkeletonAdviesKaart() {
   const { kleuren } = useThema();
   return (
-    <View style={[stijlen.adviesKaart, { backgroundColor: kleuren.isDark ? '#1E1E3A' : '#EDE9FE', borderColor: kleuren.kaartRand }]}>
+    <View style={[stijlen.adviesKaart, { backgroundColor: kleuren.kaart, borderColor: kleuren.kaartRand }]}>
       <SkeletonBlok hoogte={11} breedte="40%" radius={4} stijl={{ marginBottom: 10 }} />
       <SkeletonBlok hoogte={22} breedte="80%" radius={6} stijl={{ marginBottom: 6 }} />
       <SkeletonBlok hoogte={14} breedte="60%" radius={4} stijl={{ marginBottom: 14 }} />
-      <View style={stijlen.scheidslijn} />
+      <View style={[stijlen.scheidslijn, { backgroundColor: kleuren.kaartRand }]} />
       <SkeletonBlok hoogte={12} breedte="70%" radius={4} stijl={{ marginTop: 10 }} />
     </View>
   );
@@ -89,13 +102,12 @@ export function SkeletonAdviesKaart() {
 
 const stijlen = StyleSheet.create({
   adviesKaart: {
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
   },
   scheidslijn: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
 });
